@@ -174,6 +174,23 @@ This component deploys after Foundation core components but before manual SSO co
 
 See the main [CLAUDE.md](../CLAUDE.md#git-workflow--publishing) for complete documentation of the OpenSecOps git workflow, development process, and publishing system.
 
+### CRITICAL WARNING: Never Push Directly to OpenSecOps Repositories
+
+**NEVER** push directly to OpenSecOps organization repositories (e.g., `https://github.com/OpenSecOps-Org/Foundation-security-services-setup.git`). This will:
+
+- Pollute the clean release history with messy development commits
+- Break the established dual-repository workflow 
+- Require deletion and recreation of the entire OpenSecOps repository
+- Destroy the professional appearance of published repositories
+
+**Always use the `./publish` script** which:
+- Collapses all development commits into clean release commits
+- Manages the dual repository structure properly  
+- Maintains professional public history in OpenSecOps repositories
+- Preserves full development history in personal DEV repositories
+
+**Development workflow**: Commit freely to the development repository (`origin`), then use `./publish` for clean releases to OpenSecOps.
+
 ## Implementation Status
 
 - [x] Component structure created via `refresh --dev`
