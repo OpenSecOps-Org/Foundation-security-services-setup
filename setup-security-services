@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+
+import argparse
+import sys
+
+def main():
+    parser = argparse.ArgumentParser(description='Setup AWS Security Services')
+    
+    # Service enable/disable flags
+    parser.add_argument('--aws-config', help='Enable AWS Config (Yes/No)')
+    parser.add_argument('--guardduty', help='Enable GuardDuty (Yes/No)')
+    parser.add_argument('--security-hub', help='Enable Security Hub (Yes/No)')
+    parser.add_argument('--access-analyzer', help='Enable IAM Access Analyzer (Yes/No)')
+    parser.add_argument('--detective', help='Enable Detective (Yes/No)')
+    parser.add_argument('--inspector', help='Enable Inspector (Yes/No)')
+    
+    # Configuration files
+    parser.add_argument('--accounts', help='Path to accounts.toml file')
+    
+    # Standard flags (automatically passed by deployment system)
+    parser.add_argument('--dry-run', action='store_true', help='Show what would be done without making changes')
+    parser.add_argument('--verbose', action='store_true', help='Verbose output')
+    
+    args = parser.parse_args()
+    
+    print("Foundation Security Services Setup")
+    print("=================================")
+    print()
+    print("Arguments received:")
+    print(f"  --aws-config: {args.aws_config}")
+    print(f"  --guardduty: {args.guardduty}")
+    print(f"  --security-hub: {args.security_hub}")
+    print(f"  --access-analyzer: {args.access_analyzer}")
+    print(f"  --detective: {args.detective}")
+    print(f"  --inspector: {args.inspector}")
+    print(f"  --accounts: {args.accounts}")
+    print(f"  --dry-run: {args.dry_run}")
+    print(f"  --verbose: {args.verbose}")
+    print()
+    
+    if args.dry_run:
+        print("DRY RUN MODE: No actual changes would be made")
+    
+    if args.verbose:
+        print("VERBOSE MODE: Additional debugging output enabled")
+    
+    print("Script completed successfully!")
+    return 0
+
+if __name__ == '__main__':
+    sys.exit(main())

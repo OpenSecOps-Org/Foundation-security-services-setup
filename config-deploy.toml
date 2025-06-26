@@ -4,27 +4,14 @@ repo-name    = "Foundation-security-services-setup"
 part-of      = 'foundation'
 
 
-[[pre-SAM-CloudFormation]]
-name         = "INFRA-foo-bar"
-template     = 'cloudformation/foo-bar.yaml'
-account      = '{admin-account}'
-regions      = '{main-region}'
+[[Script]]
+name         = 'setup-security-services'
+args         = [['--aws-config', '{AWSConfigEnabled}'],
+                ['--guardduty', '{GuardDutyEnabled}'],
+                ['--security-hub', '{SecurityHubEnabled}'],
+                ['--access-analyzer', '{IAMAccessAnalyzerEnabled}'],
+                ['--detective', '{DetectiveEnabled}'],
+                ['--inspector', '{InspectorEnabled}'],
+                ['--accounts', '../Installer/apps/accounts.toml']]
 
-[[pre-SAM-CloudFormation]]
-name         = "INFRA-baz-role"
-template     = 'cloudformation/baz-role.yaml'
-account      = 'ALL'
-regions      = '{main-region}'
-capabilities = 'CAPABILITY_NAMED_IAM'
-
-[[pre-SAM-CloudFormation]]
-name         = "INFRA-quux"
-template     = 'cloudformation/quux.yaml'
-account      = 'ALL'
-regions      = '{all-regions}'
-
-
-[SAM]
-stack-name   = "INFRA-security-services-setup"
-profile      = "admin-account"
-regions      = '{all-regions}'
+            
