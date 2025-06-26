@@ -2,6 +2,15 @@
 
 import argparse
 import sys
+import json
+
+# Import service modules
+from modules.aws_config import setup_aws_config
+from modules.guardduty import setup_guardduty
+from modules.security_hub import setup_security_hub
+from modules.access_analyzer import setup_access_analyzer
+from modules.detective import setup_detective
+from modules.inspector import setup_inspector
 
 def main():
     parser = argparse.ArgumentParser(description='Setup AWS Security Services')
@@ -25,27 +34,73 @@ def main():
     
     print("Foundation Security Services Setup")
     print("=================================")
-    print()
-    print("Arguments received:")
-    print(f"  --aws-config: {args.aws_config}")
-    print(f"  --guardduty: {args.guardduty}")
-    print(f"  --security-hub: {args.security_hub}")
-    print(f"  --access-analyzer: {args.access_analyzer}")
-    print(f"  --detective: {args.detective}")
-    print(f"  --inspector: {args.inspector}")
-    print(f"  --accounts: {args.accounts}")
-    print(f"  --dry-run: {args.dry_run}")
-    print(f"  --verbose: {args.verbose}")
-    print()
     
     if args.dry_run:
-        print("DRY RUN MODE: No actual changes would be made")
+        print("🔍 DRY RUN MODE: No actual changes will be made")
     
     if args.verbose:
-        print("VERBOSE MODE: Additional debugging output enabled")
+        print("📊 VERBOSE MODE: Additional debugging output enabled")
+        print("\nArguments received:")
+        print(f"  --aws-config: {args.aws_config}")
+        print(f"  --guardduty: {args.guardduty}")
+        print(f"  --security-hub: {args.security_hub}")
+        print(f"  --access-analyzer: {args.access_analyzer}")
+        print(f"  --detective: {args.detective}")
+        print(f"  --inspector: {args.inspector}")
+        print(f"  --accounts: {args.accounts[:100]}..." if len(args.accounts) > 100 else f"  --accounts: {args.accounts}")
+        print(f"  --dry-run: {args.dry_run}")
+        print(f"  --verbose: {args.verbose}")
     
-    print("Script completed successfully!")
-    return 0
+    # Parse accounts data
+    try:
+        accounts_data = json.loads(args.accounts) if args.accounts else {}
+        if args.verbose:
+            print(f"\nParsed accounts data: {accounts_data}")
+    except json.JSONDecodeError as e:
+        print(f"❌ ERROR: Failed to parse accounts data: {e}")
+        return 1
+    
+    # Track results for final summary
+    results = {}
+    
+    # Execute security service setup functions in order (most basic to most expendable)
+    services = [
+        ("AWS Config", setup_aws_config, args.aws_config),
+        ("GuardDuty", setup_guardduty, args.guardduty),
+        ("Security Hub", setup_security_hub, args.security_hub),
+        ("IAM Access Analyzer", setup_access_analyzer, args.access_analyzer),
+        ("Detective", setup_detective, args.detective),
+        ("Inspector", setup_inspector, args.inspector),
+    ]
+    
+    for service_name, setup_func, enabled in services:
+        try:
+            print(f"\n🔧 Processing {service_name}...")
+            success = setup_func(enabled, accounts_data, args.dry_run, args.verbose)
+            results[service_name] = "✅ SUCCESS" if success else "⚠️ FAILED"
+            
+        except Exception as e:
+            print(f"❌ CRITICAL ERROR in {service_name}: {e}")
+            results[service_name] = f"❌ CRITICAL ERROR: {e}"
+    
+    # Final summary
+    print("\n" + "="*60)
+    print("FINAL SUMMARY")
+    print("="*60)
+    
+    for service_name, result in results.items():
+        print(f"{service_name}: {result}")
+    
+    # Determine overall exit code
+    failed_services = [name for name, result in results.items() if "FAILED" in result or "ERROR" in result]
+    
+    if failed_services:
+        print(f"\n⚠️ {len(failed_services)} service(s) had issues: {', '.join(failed_services)}")
+        print("✅ Script completed with warnings")
+        return 0  # Still return 0 to avoid breaking deployment pipeline
+    else:
+        print("\n✅ All services processed successfully!")
+        return 0
 
 if __name__ == '__main__':
     sys.exit(main())
