@@ -172,30 +172,7 @@ This component deploys after Foundation core components but before manual SSO co
 
 ## Git Workflow & Publishing
 
-### Development Workflow
-- Development happens on the `main` branch in the personal dev repository (`PeterBengtson/Foundation-security-services-setup-DEV`)
-- Commit frequently with detailed development messages during implementation
-- All messy "work in progress", "fix typo", "debugging" commits are perfectly fine
-
-### Repository Structure
-- **origin**: `git@github.com:PeterBengtson/Foundation-security-services-setup-DEV.git` (development)
-- **OpenSecOps**: `https://github.com/OpenSecOps-Org/Foundation-security-services-setup.git` (published)
-
-### Publishing Process
-The `./publish` script implements a sophisticated release workflow:
-
-1. **Reads version** from CHANGELOG.md (format: `## v1.0.0`) or command line
-2. **Collapses all development commits** into a single clean release commit 
-3. **Creates/updates releases branch** with just the final state of files
-4. **Tags the release** with the version number
-5. **Pushes to both repositories**:
-   - Development repo: preserves full commit history + releases branch
-   - Published repo: receives only clean release commits on main branch
-
-**Result**: The published OpenSecOps repository has an extremely clean history with only meaningful release commits, while development repository retains full working history.
-
-### Setup Process
-- `./setup Foundation-security-services-setup` adds the OpenSecOps remote for publishing
+See the main [CLAUDE.md](../CLAUDE.md#git-workflow--publishing) for complete documentation of the OpenSecOps git workflow, development process, and publishing system.
 
 ## Implementation Status
 
