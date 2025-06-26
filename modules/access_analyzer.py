@@ -23,7 +23,7 @@ def printc(color, string, **kwargs):
     """Print colored output with proper line clearing"""
     print(f"{color}{string}\033[K{END}", **kwargs)
 
-def setup_access_analyzer(enabled, accounts, dry_run, verbose):
+def setup_access_analyzer(enabled, params, dry_run, verbose):
     """Setup IAM Access Analyzer delegation and organization-wide analyzers."""
     try:
         printc(LIGHT_BLUE, "\n" + "="*60)

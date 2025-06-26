@@ -34,7 +34,7 @@ def printc(color, string, **kwargs):
     """Print colored output with proper line clearing"""
     print(f"{color}{string}\033[K{END}", **kwargs)
 
-def setup_security_hub(enabled, accounts, dry_run, verbose):
+def setup_security_hub(enabled, params, dry_run, verbose):
     """Setup Security Hub delegation and control policies."""
     try:
         printc(LIGHT_BLUE, "\n" + "="*60)

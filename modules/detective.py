@@ -20,7 +20,7 @@ def printc(color, string, **kwargs):
     """Print colored output with proper line clearing"""
     print(f"{color}{string}\033[K{END}", **kwargs)
 
-def setup_detective(enabled, accounts, dry_run, verbose):
+def setup_detective(enabled, params, dry_run, verbose):
     """Setup Amazon Detective delegation and configuration."""
     try:
         printc(LIGHT_BLUE, "\n" + "="*60)

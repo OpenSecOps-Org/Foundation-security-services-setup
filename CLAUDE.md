@@ -157,11 +157,12 @@ Single `[[Script]]` section references the central orchestration script:
 - Cross-account access via SSO profile switching or role assumption
 
 ### Parameters Required
-- `{security-adm-account}` - Security administration account ID (from accounts.toml)
+- `{security-account}` - Security administration account ID (from accounts.toml)
 - `{main-region}` - Primary AWS region
 - `{other-regions}` - Additional enabled regions  
 - `{all-regions}` - Combined list of main-region + other-regions (auto-generated)
 - `{org-id}` - Organization ID
+- `{root-ou}` - Root organizational unit ID
 - `{cross-account-role}` - Role for cross-account access
 
 ### Deployment Sequence
