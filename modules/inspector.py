@@ -10,30 +10,45 @@ Automates the manual steps:
    accounts.
 """
 
+# ANSI Color codes (matching Foundation-AWS-Core-SSO-Configuration)
+YELLOW = "\033[93m"
+LIGHT_BLUE = "\033[94m" 
+GREEN = "\033[92m"
+RED = "\033[91m"
+GRAY = "\033[90m"
+END = "\033[0m"
+BOLD = "\033[1m"
+
+def printc(color, string, **kwargs):
+    """Print colored output with proper line clearing"""
+    print(f"{color}{string}\033[K{END}", **kwargs)
+
 def setup_inspector(enabled, accounts, dry_run, verbose):
     """Setup Amazon Inspector delegation and configuration."""
     try:
-        print("\n" + "="*60)
-        print("INSPECTOR SETUP")
-        print("="*60)
-        print(f"Enabled: {enabled}")
-        print(f"Dry Run: {dry_run}")
-        print(f"Verbose: {verbose}")
+        printc(LIGHT_BLUE, "\n" + "="*60)
+        printc(LIGHT_BLUE, "INSPECTOR SETUP")
+        printc(LIGHT_BLUE, "="*60)
+        
+        if verbose:
+            printc(GRAY, f"Enabled: {enabled}")
+            printc(GRAY, f"Dry Run: {dry_run}")
+            printc(GRAY, f"Verbose: {verbose}")
         
         if enabled.lower() == 'yes':
             if dry_run:
-                print("DRY RUN: Would delegate administration to Security-Adm account")
-                print("DRY RUN: Would configure Inspector in each chosen region")
-                print("DRY RUN: Would activate existing member accounts and enable auto-activation")
+                printc(YELLOW, "DRY RUN: Would delegate administration to Security-Adm account")
+                printc(YELLOW, "DRY RUN: Would configure Inspector in each chosen region")
+                printc(YELLOW, "DRY RUN: Would activate existing member accounts and enable auto-activation")
             else:
-                print("TODO: Delegate administration to Security-Adm account")
-                print("TODO: Configure Inspector in each chosen region")
-                print("TODO: Activate existing member accounts and enable auto-activation")
+                printc(YELLOW, "TODO: Delegate administration to Security-Adm account")
+                printc(YELLOW, "TODO: Configure Inspector in each chosen region")
+                printc(YELLOW, "TODO: Activate existing member accounts and enable auto-activation")
         else:
-            print("Inspector is disabled - skipping")
+            printc(GRAY, "Inspector is disabled - skipping")
             
         return True
         
     except Exception as e:
-        print(f"ERROR in setup_inspector: {e}")
+        printc(RED, f"ERROR in setup_inspector: {e}")
         return False

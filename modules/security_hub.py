@@ -21,34 +21,49 @@ Automates the manual steps:
    idea to wait 24 hours to verify your control setup.
 """
 
+# ANSI Color codes (matching Foundation-AWS-Core-SSO-Configuration)
+YELLOW = "\033[93m"
+LIGHT_BLUE = "\033[94m" 
+GREEN = "\033[92m"
+RED = "\033[91m"
+GRAY = "\033[90m"
+END = "\033[0m"
+BOLD = "\033[1m"
+
+def printc(color, string, **kwargs):
+    """Print colored output with proper line clearing"""
+    print(f"{color}{string}\033[K{END}", **kwargs)
+
 def setup_security_hub(enabled, accounts, dry_run, verbose):
     """Setup Security Hub delegation and control policies."""
     try:
-        print("\n" + "="*60)
-        print("SECURITY HUB SETUP")
-        print("="*60)
-        print(f"Enabled: {enabled}")
-        print(f"Dry Run: {dry_run}")
-        print(f"Verbose: {verbose}")
+        printc(LIGHT_BLUE, "\n" + "="*60)
+        printc(LIGHT_BLUE, "SECURITY HUB SETUP")
+        printc(LIGHT_BLUE, "="*60)
+        
+        if verbose:
+            printc(GRAY, f"Enabled: {enabled}")
+            printc(GRAY, f"Dry Run: {dry_run}")
+            printc(GRAY, f"Verbose: {verbose}")
         
         if enabled.lower() == 'yes':
             if dry_run:
-                print("DRY RUN: Would delegate administration to Security-Adm account")
-                print("DRY RUN: Would set up central configuration and consolidated findings")
-                print("DRY RUN: Would create PROD and DEV control policies")
-                print("DRY RUN: Would assign policies to appropriate OUs")
-                print("DRY RUN: Would suppress all findings to reset with new settings")
+                printc(YELLOW, "DRY RUN: Would delegate administration to Security-Adm account")
+                printc(YELLOW, "DRY RUN: Would set up central configuration and consolidated findings")
+                printc(YELLOW, "DRY RUN: Would create PROD and DEV control policies")
+                printc(YELLOW, "DRY RUN: Would assign policies to appropriate OUs")
+                printc(YELLOW, "DRY RUN: Would suppress all findings to reset with new settings")
             else:
-                print("TODO: Delegate administration to Security-Adm account")
-                print("TODO: Set up central configuration and consolidated findings")
-                print("TODO: Create PROD and DEV control policies")
-                print("TODO: Assign policies to appropriate OUs")
-                print("TODO: Suppress all findings to reset with new settings")
+                printc(YELLOW, "TODO: Delegate administration to Security-Adm account")
+                printc(YELLOW, "TODO: Set up central configuration and consolidated findings")
+                printc(YELLOW, "TODO: Create PROD and DEV control policies")
+                printc(YELLOW, "TODO: Assign policies to appropriate OUs")
+                printc(YELLOW, "TODO: Suppress all findings to reset with new settings")
         else:
-            print("Security Hub is disabled - skipping")
+            printc(GRAY, "Security Hub is disabled - skipping")
             
         return True
         
     except Exception as e:
-        print(f"ERROR in setup_security_hub: {e}")
+        printc(RED, f"ERROR in setup_security_hub: {e}")
         return False

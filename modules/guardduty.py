@@ -9,30 +9,45 @@ Automates the manual steps:
    regions.
 """
 
+# ANSI Color codes (matching Foundation-AWS-Core-SSO-Configuration)
+YELLOW = "\033[93m"
+LIGHT_BLUE = "\033[94m" 
+GREEN = "\033[92m"
+RED = "\033[91m"
+GRAY = "\033[90m"
+END = "\033[0m"
+BOLD = "\033[1m"
+
+def printc(color, string, **kwargs):
+    """Print colored output with proper line clearing"""
+    print(f"{color}{string}\033[K{END}", **kwargs)
+
 def setup_guardduty(enabled, accounts, dry_run, verbose):
     """Setup GuardDuty delegation and configuration."""
     try:
-        print("\n" + "="*60)
-        print("GUARDDUTY SETUP")
-        print("="*60)
-        print(f"Enabled: {enabled}")
-        print(f"Dry Run: {dry_run}")
-        print(f"Verbose: {verbose}")
+        printc(LIGHT_BLUE, "\n" + "="*60)
+        printc(LIGHT_BLUE, "GUARDDUTY SETUP")
+        printc(LIGHT_BLUE, "="*60)
+        
+        if verbose:
+            printc(GRAY, f"Enabled: {enabled}")
+            printc(GRAY, f"Dry Run: {dry_run}")
+            printc(GRAY, f"Verbose: {verbose}")
         
         if enabled.lower() == 'yes':
             if dry_run:
-                print("DRY RUN: Would enable GuardDuty in all activated regions")
-                print("DRY RUN: Would delegate administration to Security-Adm account")
-                print("DRY RUN: Would configure auto-enable in Security-Adm account")
+                printc(YELLOW, "DRY RUN: Would enable GuardDuty in all activated regions")
+                printc(YELLOW, "DRY RUN: Would delegate administration to Security-Adm account")
+                printc(YELLOW, "DRY RUN: Would configure auto-enable in Security-Adm account")
             else:
-                print("TODO: Enable GuardDuty in all activated regions")
-                print("TODO: Delegate administration to Security-Adm account")
-                print("TODO: Configure auto-enable in Security-Adm account")
+                printc(YELLOW, "TODO: Enable GuardDuty in all activated regions")
+                printc(YELLOW, "TODO: Delegate administration to Security-Adm account")
+                printc(YELLOW, "TODO: Configure auto-enable in Security-Adm account")
         else:
-            print("GuardDuty is disabled - skipping")
+            printc(GRAY, "GuardDuty is disabled - skipping")
             
         return True
         
     except Exception as e:
-        print(f"ERROR in setup_guardduty: {e}")
+        printc(RED, f"ERROR in setup_guardduty: {e}")
         return False

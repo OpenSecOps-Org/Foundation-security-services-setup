@@ -7,28 +7,43 @@ Automates the manual steps:
 2. In Security-Adm, configure Detective in all your selected regions.
 """
 
+# ANSI Color codes (matching Foundation-AWS-Core-SSO-Configuration)
+YELLOW = "\033[93m"
+LIGHT_BLUE = "\033[94m" 
+GREEN = "\033[92m"
+RED = "\033[91m"
+GRAY = "\033[90m"
+END = "\033[0m"
+BOLD = "\033[1m"
+
+def printc(color, string, **kwargs):
+    """Print colored output with proper line clearing"""
+    print(f"{color}{string}\033[K{END}", **kwargs)
+
 def setup_detective(enabled, accounts, dry_run, verbose):
     """Setup Amazon Detective delegation and configuration."""
     try:
-        print("\n" + "="*60)
-        print("DETECTIVE SETUP")
-        print("="*60)
-        print(f"Enabled: {enabled}")
-        print(f"Dry Run: {dry_run}")
-        print(f"Verbose: {verbose}")
+        printc(LIGHT_BLUE, "\n" + "="*60)
+        printc(LIGHT_BLUE, "DETECTIVE SETUP")
+        printc(LIGHT_BLUE, "="*60)
+        
+        if verbose:
+            printc(GRAY, f"Enabled: {enabled}")
+            printc(GRAY, f"Dry Run: {dry_run}")
+            printc(GRAY, f"Verbose: {verbose}")
         
         if enabled.lower() == 'yes':
             if dry_run:
-                print("DRY RUN: Would delegate Detective to Security-Adm in all regions")
-                print("DRY RUN: Would configure Detective in all selected regions")
+                printc(YELLOW, "DRY RUN: Would delegate Detective to Security-Adm in all regions")
+                printc(YELLOW, "DRY RUN: Would configure Detective in all selected regions")
             else:
-                print("TODO: Delegate Detective to Security-Adm in all regions")
-                print("TODO: Configure Detective in all selected regions")
+                printc(YELLOW, "TODO: Delegate Detective to Security-Adm in all regions")
+                printc(YELLOW, "TODO: Configure Detective in all selected regions")
         else:
-            print("Detective is disabled - skipping")
+            printc(GRAY, "Detective is disabled - skipping")
             
         return True
         
     except Exception as e:
-        print(f"ERROR in setup_detective: {e}")
+        printc(RED, f"ERROR in setup_detective: {e}")
         return False

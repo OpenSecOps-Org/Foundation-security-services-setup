@@ -8,28 +8,43 @@ Automates the manual steps:
    global filter in these regions.
 """
 
+# ANSI Color codes (matching Foundation-AWS-Core-SSO-Configuration)
+YELLOW = "\033[93m"
+LIGHT_BLUE = "\033[94m" 
+GREEN = "\033[92m"
+RED = "\033[91m"
+GRAY = "\033[90m"
+END = "\033[0m"
+BOLD = "\033[1m"
+
+def printc(color, string, **kwargs):
+    """Print colored output with proper line clearing"""
+    print(f"{color}{string}\033[K{END}", **kwargs)
+
 def setup_aws_config(enabled, accounts, dry_run, verbose):
     """Setup AWS Config in org account with proper IAM global event recording."""
     try:
-        print("\n" + "="*60)
-        print("AWS CONFIG SETUP")
-        print("="*60)
-        print(f"Enabled: {enabled}")
-        print(f"Dry Run: {dry_run}")
-        print(f"Verbose: {verbose}")
+        printc(LIGHT_BLUE, "\n" + "="*60)
+        printc(LIGHT_BLUE, "AWS CONFIG SETUP")
+        printc(LIGHT_BLUE, "="*60)
+        
+        if verbose:
+            printc(GRAY, f"Enabled: {enabled}")
+            printc(GRAY, f"Dry Run: {dry_run}")
+            printc(GRAY, f"Verbose: {verbose}")
         
         if enabled.lower() == 'yes':
             if dry_run:
-                print("DRY RUN: Would enable AWS Config in main region (remove IAM global filter)")
-                print("DRY RUN: Would enable AWS Config in other regions (keep IAM global filter)")
+                printc(YELLOW, "DRY RUN: Would enable AWS Config in main region (remove IAM global filter)")
+                printc(YELLOW, "DRY RUN: Would enable AWS Config in other regions (keep IAM global filter)")
             else:
-                print("TODO: Enable AWS Config in main region, remove IAM global filter")
-                print("TODO: Enable AWS Config in other regions, keep IAM global filter")
+                printc(YELLOW, "TODO: Enable AWS Config in main region, remove IAM global filter")
+                printc(YELLOW, "TODO: Enable AWS Config in other regions, keep IAM global filter")
         else:
-            print("AWS Config is disabled - skipping")
+            printc(GRAY, "AWS Config is disabled - skipping")
             
         return True
         
     except Exception as e:
-        print(f"ERROR in setup_aws_config: {e}")
+        printc(RED, f"ERROR in setup_aws_config: {e}")
         return False

@@ -4,6 +4,19 @@ import argparse
 import sys
 import json
 
+# ANSI Color codes (matching Foundation-AWS-Core-SSO-Configuration)
+YELLOW = "\033[93m"
+LIGHT_BLUE = "\033[94m" 
+GREEN = "\033[92m"
+RED = "\033[91m"
+GRAY = "\033[90m"
+END = "\033[0m"
+BOLD = "\033[1m"
+
+def printc(color, string, **kwargs):
+    """Print colored output with proper line clearing"""
+    print(f"{color}{string}\033[K{END}", **kwargs)
+
 # Import service modules
 from modules.aws_config import setup_aws_config
 from modules.guardduty import setup_guardduty
@@ -32,32 +45,35 @@ def main():
     
     args = parser.parse_args()
     
-    print("Foundation Security Services Setup")
-    print("=================================")
+    # Main header banner (LIGHT_BLUE like Foundation-AWS-Core-SSO-Configuration)
+    printc(LIGHT_BLUE, "=" * 60)
+    printc(LIGHT_BLUE, "  Foundation Security Services Setup")
+    printc(LIGHT_BLUE, "-" * 60)
     
     if args.dry_run:
-        print("🔍 DRY RUN MODE: No actual changes will be made")
+        printc(YELLOW, "🔍 DRY RUN MODE: No actual changes will be made")
     
     if args.verbose:
-        print("📊 VERBOSE MODE: Additional debugging output enabled")
-        print("\nArguments received:")
-        print(f"  --aws-config: {args.aws_config}")
-        print(f"  --guardduty: {args.guardduty}")
-        print(f"  --security-hub: {args.security_hub}")
-        print(f"  --access-analyzer: {args.access_analyzer}")
-        print(f"  --detective: {args.detective}")
-        print(f"  --inspector: {args.inspector}")
-        print(f"  --accounts: {args.accounts[:100]}..." if len(args.accounts) > 100 else f"  --accounts: {args.accounts}")
-        print(f"  --dry-run: {args.dry_run}")
-        print(f"  --verbose: {args.verbose}")
+        printc(GRAY, "📊 VERBOSE MODE: Additional debugging output enabled")
+        printc(GRAY, "\nArguments received:")
+        printc(GRAY, f"  --aws-config: {args.aws_config}")
+        printc(GRAY, f"  --guardduty: {args.guardduty}")
+        printc(GRAY, f"  --security-hub: {args.security_hub}")
+        printc(GRAY, f"  --access-analyzer: {args.access_analyzer}")
+        printc(GRAY, f"  --detective: {args.detective}")
+        printc(GRAY, f"  --inspector: {args.inspector}")
+        accounts_display = f"{args.accounts[:100]}..." if args.accounts and len(args.accounts) > 100 else args.accounts
+        printc(GRAY, f"  --accounts: {accounts_display}")
+        printc(GRAY, f"  --dry-run: {args.dry_run}")
+        printc(GRAY, f"  --verbose: {args.verbose}")
     
     # Parse accounts data
     try:
         accounts_data = json.loads(args.accounts) if args.accounts else {}
         if args.verbose:
-            print(f"\nParsed accounts data: {accounts_data}")
+            printc(GRAY, f"\nParsed accounts data: {accounts_data}")
     except json.JSONDecodeError as e:
-        print(f"❌ ERROR: Failed to parse accounts data: {e}")
+        printc(RED, f"❌ ERROR: Failed to parse accounts data: {e}")
         return 1
     
     # Track results for final summary
@@ -75,31 +91,41 @@ def main():
     
     for service_name, setup_func, enabled in services:
         try:
-            print(f"\n🔧 Processing {service_name}...")
+            printc(YELLOW, f"\n🔧 Processing {service_name}...")
             success = setup_func(enabled, accounts_data, args.dry_run, args.verbose)
-            results[service_name] = "✅ SUCCESS" if success else "⚠️ FAILED"
+            if success:
+                results[service_name] = "SUCCESS"
+                printc(GREEN, f"✅ {service_name} completed successfully")
+            else:
+                results[service_name] = "FAILED"
+                printc(RED, f"⚠️ {service_name} failed")
             
         except Exception as e:
-            print(f"❌ CRITICAL ERROR in {service_name}: {e}")
-            results[service_name] = f"❌ CRITICAL ERROR: {e}"
+            printc(RED, f"❌ CRITICAL ERROR in {service_name}: {e}")
+            results[service_name] = f"CRITICAL ERROR: {e}"
     
     # Final summary
-    print("\n" + "="*60)
-    print("FINAL SUMMARY")
-    print("="*60)
+    printc(LIGHT_BLUE, "\n" + "="*60)
+    printc(LIGHT_BLUE, "FINAL SUMMARY")
+    printc(LIGHT_BLUE, "="*60)
     
     for service_name, result in results.items():
-        print(f"{service_name}: {result}")
+        if "SUCCESS" in result:
+            printc(GREEN, f"{service_name}: ✅ {result}")
+        elif "FAILED" in result:
+            printc(RED, f"{service_name}: ⚠️ {result}")
+        else:
+            printc(RED, f"{service_name}: ❌ {result}")
     
     # Determine overall exit code
     failed_services = [name for name, result in results.items() if "FAILED" in result or "ERROR" in result]
     
     if failed_services:
-        print(f"\n⚠️ {len(failed_services)} service(s) had issues: {', '.join(failed_services)}")
-        print("✅ Script completed with warnings")
+        printc(YELLOW, f"\n⚠️ {len(failed_services)} service(s) had issues: {', '.join(failed_services)}")
+        printc(GREEN, "✅ Script completed with warnings")
         return 0  # Still return 0 to avoid breaking deployment pipeline
     else:
-        print("\n✅ All services processed successfully!")
+        printc(BOLD + GREEN, "\n✅ All services processed successfully!")
         return 0
 
 if __name__ == '__main__':

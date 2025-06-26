@@ -10,30 +10,45 @@ Automates the manual steps:
    main region only.
 """
 
+# ANSI Color codes (matching Foundation-AWS-Core-SSO-Configuration)
+YELLOW = "\033[93m"
+LIGHT_BLUE = "\033[94m" 
+GREEN = "\033[92m"
+RED = "\033[91m"
+GRAY = "\033[90m"
+END = "\033[0m"
+BOLD = "\033[1m"
+
+def printc(color, string, **kwargs):
+    """Print colored output with proper line clearing"""
+    print(f"{color}{string}\033[K{END}", **kwargs)
+
 def setup_access_analyzer(enabled, accounts, dry_run, verbose):
     """Setup IAM Access Analyzer delegation and organization-wide analyzers."""
     try:
-        print("\n" + "="*60)
-        print("IAM ACCESS ANALYZER SETUP")
-        print("="*60)
-        print(f"Enabled: {enabled}")
-        print(f"Dry Run: {dry_run}")
-        print(f"Verbose: {verbose}")
+        printc(LIGHT_BLUE, "\n" + "="*60)
+        printc(LIGHT_BLUE, "IAM ACCESS ANALYZER SETUP")
+        printc(LIGHT_BLUE, "="*60)
+        
+        if verbose:
+            printc(GRAY, f"Enabled: {enabled}")
+            printc(GRAY, f"Dry Run: {dry_run}")
+            printc(GRAY, f"Verbose: {verbose}")
         
         if enabled.lower() == 'yes':
             if dry_run:
-                print("DRY RUN: Would delegate administration to Security-Adm account")
-                print("DRY RUN: Would set up organization-wide analyzer for external access (all regions)")
-                print("DRY RUN: Would set up organization-wide analyzer for unused access (main region only)")
+                printc(YELLOW, "DRY RUN: Would delegate administration to Security-Adm account")
+                printc(YELLOW, "DRY RUN: Would set up organization-wide analyzer for external access (all regions)")
+                printc(YELLOW, "DRY RUN: Would set up organization-wide analyzer for unused access (main region only)")
             else:
-                print("TODO: Delegate administration to Security-Adm account")
-                print("TODO: Set up organization-wide analyzer for external access (all regions)")
-                print("TODO: Set up organization-wide analyzer for unused access (main region only)")
+                printc(YELLOW, "TODO: Delegate administration to Security-Adm account")
+                printc(YELLOW, "TODO: Set up organization-wide analyzer for external access (all regions)")
+                printc(YELLOW, "TODO: Set up organization-wide analyzer for unused access (main region only)")
         else:
-            print("IAM Access Analyzer is disabled - skipping")
+            printc(GRAY, "IAM Access Analyzer is disabled - skipping")
             
         return True
         
     except Exception as e:
-        print(f"ERROR in setup_access_analyzer: {e}")
+        printc(RED, f"ERROR in setup_access_analyzer: {e}")
         return False
