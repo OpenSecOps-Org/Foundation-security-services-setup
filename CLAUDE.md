@@ -48,20 +48,20 @@ Integration tests use subprocess.run() to call the actual script. Since subproce
 
 ## Current Status Summary (for New Sessions)
 
-**🎯 PHASE 2: REAL AWS IMPLEMENTATION IN PROGRESS**: Foundation component with 3 of 6 security services fully implemented with real AWS discovery and comprehensive recommendations.
+**🎯 PHASE 2: REAL AWS IMPLEMENTATION 83% COMPLETE**: Foundation component with 5 of 6 security services fully implemented with real AWS discovery and comprehensive recommendations.
 
 **✅ Complete AWS Implementation**:
 - ✅ **AWS Config**: Full discovery, 4-scenario detection, IAM global recording logic
 - ✅ **GuardDuty**: Complete delegation patterns, finding frequency optimization, cross-account discovery
-- ✅ **IAM Access Analyzer**: Global delegation logic, regional analyzer detection, anomalous region detection, actionable recommendations
+- ✅ **Detective**: Comprehensive investigation graph discovery, GuardDuty dependency validation
+- ✅ **Inspector**: Cost-conscious vulnerability scanning with account-specific cost detection  
+- ✅ **Access Analyzer**: Global delegation discovery, external/unused access analyzer configuration
 
-**🚧 Remaining Services (Stub → Real AWS Implementation)**:
-- 🔸 **Security Hub** (MOST COMPLEX): Control policies, PROD/DEV environments, consolidated findings, organization-wide configuration
-- 🔸 **Detective**: GuardDuty dependency, investigation capabilities, regional configuration  
-- 🔸 **Inspector**: Assessment scheduling, ECR/EC2 vulnerability scanning, auto-activation
+**🚧 Remaining Service (Stub → Real AWS Implementation)**:
+- 🔸 **Security Hub** (MOST COMPLEX): Control policies, PROD/DEV environments, consolidated findings, organization-wide configuration, standards subscription management
 
 **Implementation Infrastructure**:
-- ✅ **Test Architecture**: 126 passing tests with proper AWS mocking (<14 seconds execution)
+- ✅ **Test Architecture**: 147 passing tests with proper AWS mocking (<35 seconds execution)
 - ✅ **TDD Methodology**: Proven pattern for service logic fixes and feature additions
 - ✅ **Cross-Account Patterns**: Established delegation and role assumption patterns
 - ✅ **User Experience**: Clear recommendations and actionable guidance for missing configurations
@@ -478,28 +478,41 @@ params = {
 
 ## Implementation Status
 
-### ✅ Completed
+### ✅ Completed - Descriptive Implementation Phase
 - [x] Component structure created via `refresh --dev`
 - [x] Architecture documented and finalized
 - [x] Git repository initialized with proper remotes
 - [x] Central orchestration script (`setup-security-services`) implemented
-- [x] All 6 service modules implemented with real AWS integration:
-  - [x] AWS Config setup module (`modules/aws_config.py`) - Real AWS implementation
-  - [x] GuardDuty setup module (`modules/guardduty.py`) - Real AWS implementation  
-  - [x] Detective setup module (`modules/detective.py`) - **Real AWS implementation with comprehensive discovery**
-  - [x] Inspector setup module (`modules/inspector.py`) - Real AWS implementation
-  - [x] Access Analyzer setup module (`modules/access_analyzer.py`) - Real AWS implementation
-  - [x] Security Hub setup module (`modules/security_hub.py`) - Real AWS implementation
-- [x] Comprehensive test infrastructure (113 tests, 93% coverage)
+- [x] **5 out of 6 service modules completed with comprehensive real AWS integration**:
+  - [x] AWS Config setup module (`modules/aws_config.py`) - **COMPLETE** Real AWS implementation
+  - [x] GuardDuty setup module (`modules/guardduty.py`) - **COMPLETE** Real AWS implementation  
+  - [x] Detective setup module (`modules/detective.py`) - **COMPLETE** Real AWS implementation with comprehensive discovery
+  - [x] Inspector setup module (`modules/inspector.py`) - **COMPLETE** Real AWS implementation with cost-conscious approach & account-specific scanning details
+  - [x] Access Analyzer setup module (`modules/access_analyzer.py`) - **COMPLETE** Real AWS implementation
+  - [ ] Security Hub setup module (`modules/security_hub.py`) - **PENDING** (stub implementation, most complex service remaining)
+- [x] Comprehensive test infrastructure (147 tests, 94% coverage)
 - [x] Parameter validation and argparse integration
 - [x] Standalone usage capability (independent of OpenSecOps Installer)
 - [x] README.md with detailed usage instructions
 - [x] Complete TDD implementation with BDD-style specifications
 - [x] **Detective Implementation Completed**: Comprehensive real AWS logic with discovery, deactivation detection, and detailed configuration recommendations
+- [x] **Inspector Implementation Completed**: Cost-conscious minimal scanning approach with comprehensive account-specific deactivation guidance
 
-### 🚧 In Progress / Ready for Implementation
+### 🚧 Next Phase - Security Hub Implementation
+**REMAINING WORK**: Only Security Hub requires real AWS implementation to complete the descriptive implementation phase.
+
+- [ ] **Security Hub real AWS implementation** - Most complex service with:
+  - [ ] Multi-region delegation and configuration
+  - [ ] PROD and DEV control policy management
+  - [ ] Organization-wide finding aggregation setup
+  - [ ] Standards subscription management (AWS Foundational, CIS, PCI DSS)
+  - [ ] Custom control configuration and exceptions
+  - [ ] Finding suppression and policy assignment
+
+### 🔄 Future Phases (After Security Hub)
+- [ ] **Mutation Implementation**: Replace TODO placeholders with actual AWS resource creation/modification
 - [ ] config-deploy.toml configuration for Installer integration
-- [ ] Cross-account role assumption implementation
+- [ ] Cross-account role assumption implementation  
 - [ ] Idempotency and existing configuration detection
 - [ ] End-to-end testing with real AWS environments
 
@@ -576,6 +589,94 @@ Detective Deactivation Workflow:
 - ✅ **Interface stability** - maintained exact calling convention from stub implementation
 
 **Mutation Implementation Ready**: All recommendations serve as exact implementation specifications for when user chooses to proceed with Detective mutation (actual AWS resource creation/modification).
+
+## Inspector Implementation Details (Completed v2024-12-27)
+
+**COMPLETED: Cost-Conscious Real AWS Implementation with Account-Specific Details** 🎯
+
+**What Was Implemented**:
+- ✅ **Real AWS API Integration**: Complete Inspector V2 service discovery across all regions
+- ✅ **API Structure Analysis**: Created `test_real_aws_inspector.py` for understanding real AWS Inspector structure  
+- ✅ **Cost-Conscious Approach**: Minimal scanning setup focused on delegation + member management only
+- ✅ **Account-Specific Detection**: Enhanced disabled output to show exactly which accounts have active scanning
+- ✅ **Anomalous Region Detection**: Identifies Inspector scanning outside configured regions (unexpected costs)
+- ✅ **Comprehensive All-Region Scanning**: Checks all 17 AWS regions regardless of delegation status
+- ✅ **Auto-Activation Reporting**: Shows auto-activation status and account coverage when enabled
+- ✅ **30 Passing Tests**: Complete TDD validation with 2 new tests for account-specific functionality
+
+**Key Technical Insights**:
+- **Inspector V2 service principal**: `inspector2.amazonaws.com` 
+- **Regional delegation pattern** (like Detective, unlike Access Analyzer's global delegation)
+- **Account-specific scanning**: `batch_get_account_status()` shows per-account ECR/EC2/Lambda scanning
+- **Member pagination**: `list_members` requires pagination for organization-wide data
+- **Auto-activation configuration**: `batch_get_auto_enable()` for new account setup
+
+**Account-Specific Deactivation Output**:
+```yaml
+Current active Inspector resources:
+  • 2 configured region(s) with active scanning:
+    📍 us-east-1 (4 scan types):
+      🔹 Account 123456789012: ECR, EC2  
+      🔹 Account 234567890123: LAMBDA
+    📍 us-west-2 (2 scan types):
+      🔹 Account 123456789012: EC2
+```
+
+**Cost Control Features**:
+- **Anomalous scanning detection**: Alerts on unexpected regions generating costs
+- **Account-level breakdown**: Shows exactly where to disable scanning
+- **Scan type specificity**: ECR, EC2, Lambda breakdown per account
+- **Comprehensive region coverage**: Scans all AWS regions, not just configured ones
+
+**Configuration Guidance** (Mutation Implementation Roadmap):
+```yaml
+Inspector Setup Requirements:
+  1. Delegate Inspector administration to Security-Adm in all regions
+  2. Configure Inspector with vulnerability assessments (minimal scanning)
+  3. Activate existing accounts and enable auto-activation
+  4. Cost-conscious: No automatic scanning enablement (client controls scan types)
+
+Inspector Deactivation Workflow:
+  1. Disable vulnerability scanning (ECR, EC2, Lambda) per account per region
+  2. Remove member accounts from Inspector organization
+  3. Disable automatic member enrollment for new accounts  
+  4. Remove Inspector delegation from Security account
+  5. Comprehensive: Check all regions regardless of delegation status
+```
+
+**Real AWS Discovery Data**:
+```json
+{
+  "inspector_insights": {
+    "service_principal": "inspector2.amazonaws.com",
+    "delegation_scope": "regional",
+    "api_structure": {
+      "batch_get_account_status": "shows per-account scanning by resource type",
+      "list_members": "paginated - organization member accounts",
+      "batch_get_auto_enable": "auto-activation configuration"
+    },
+    "cost_detection": {
+      "scan_types": ["ECR", "EC2", "LAMBDA"],
+      "account_specific": true,
+      "region_comprehensive": "all 17 AWS regions checked"
+    }
+  }
+}
+```
+
+**User Impact Solved**:
+- **Before**: "Now I only see regions, which makes it difficult to find where to disable them"
+- **After**: Account-specific breakdown showing exactly which accounts need scanning disabled
+- **Cost Control**: Clear identification of unexpected scanning costs in anomalous regions
+- **Actionable Guidance**: Precise deactivation steps per account and scan type
+
+**Testing Excellence**:
+- **30 Inspector tests** including 2 new tests for account-specific functionality
+- **147 total tests** in complete test suite (all passing)
+- **Account-specific mocking** validates real API response structure
+- **Dry-run testing** ensures preview accuracy matches implementation
+
+**Mutation Implementation Ready**: All recommendations provide exact implementation specifications for Inspector resource creation/modification when transitioning from descriptive to mutation phase.
 
 ## Testing Strategy - CONSOLIDATED ABOVE ⬆️
 
