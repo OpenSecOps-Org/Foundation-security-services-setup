@@ -292,43 +292,48 @@ See the main [CLAUDE.md](../CLAUDE.md#git-workflow--publishing) for complete doc
 
 ## Implementation Status
 
-### ✅ Completed - Descriptive Implementation Phase
+### ✅ Completed - Descriptive Implementation Phase (100% Complete)
 - [x] Component structure created via `refresh --dev`
 - [x] Architecture documented and finalized
 - [x] Git repository initialized with proper remotes
 - [x] Central orchestration script (`setup-security-services`) implemented
-- [x] **5 out of 6 service modules completed with comprehensive real AWS integration**:
+- [x] **All 6 service modules completed with comprehensive real AWS integration**:
   - [x] AWS Config setup module (`modules/aws_config.py`) - **COMPLETE** Real AWS implementation
   - [x] GuardDuty setup module (`modules/guardduty.py`) - **COMPLETE** Real AWS implementation  
   - [x] Detective setup module (`modules/detective.py`) - **COMPLETE** Real AWS implementation with comprehensive discovery
   - [x] Inspector setup module (`modules/inspector.py`) - **COMPLETE** Real AWS implementation with cost-conscious approach & account-specific scanning details
   - [x] Access Analyzer setup module (`modules/access_analyzer.py`) - **COMPLETE** Real AWS implementation
-  - [ ] Security Hub setup module (`modules/security_hub.py`) - **PENDING** (stub implementation, most complex service remaining)
-- [x] Comprehensive test infrastructure (147 tests, 94% coverage)
+  - [x] Security Hub setup module (`modules/security_hub.py`) - **COMPLETE** Real AWS implementation with PROD/DEV policy discovery
+- [x] Comprehensive test infrastructure (147 tests passing, 100% success rate)
 - [x] Parameter validation and argparse integration
 - [x] Standalone usage capability (independent of OpenSecOps Installer)
 - [x] README.md with detailed usage instructions
 - [x] Complete TDD implementation with BDD-style specifications
-- [x] **Detective Implementation Completed**: Comprehensive real AWS logic with discovery, deactivation detection, and detailed configuration recommendations
-- [x] **Inspector Implementation Completed**: Cost-conscious minimal scanning approach with comprehensive account-specific deactivation guidance
+- [x] **Security Hub Implementation Completed**: PROD/DEV policy discovery, consolidated controls validation, standards analysis with readable names
+- [x] **Repository cleanup**: Removed 21 obsolete discovery files and scripts
 
-### 🚧 Next Phase - Security Hub Implementation
-**REMAINING WORK**: Only Security Hub requires real AWS implementation to complete the descriptive implementation phase.
+### 🔄 Next Phase - Mutation Implementation
+**READY TO START**: All descriptive implementations complete, comprehensive recommendations available for mutation logic.
 
-- [ ] **Security Hub real AWS implementation** - Most complex service with:
-  - [ ] Multi-region delegation and configuration
-  - [ ] PROD and DEV control policy management
-  - [ ] Organization-wide finding aggregation setup
-  - [ ] Standards subscription management (AWS Foundational, CIS, PCI DSS)
-  - [ ] Custom control configuration and exceptions
-  - [ ] Finding suppression and policy assignment
+**Mutation Implementation Priority**:
+- [ ] **AWS Config Mutation**: Enable Config in regions with proper IAM global event recording
+- [ ] **GuardDuty Mutation**: Delegate administration and configure auto-enable for organization
+- [ ] **Security Hub Mutation**: Delegate administration, enable consolidated controls, configure finding aggregation
+- [ ] **Access Analyzer Mutation**: Create organization-wide analyzers for external and unused access detection
+- [ ] **Detective Mutation**: Enable investigation graphs with GuardDuty dependency validation
+- [ ] **Inspector Mutation**: Configure vulnerability scanning with cost-conscious minimal approach
 
-### 🔄 Future Phases (After Security Hub)
-- [ ] **Mutation Implementation**: Replace TODO placeholders with actual AWS resource creation/modification
+**Each Mutation Module Should**:
+- Replace current TODO placeholders with actual AWS resource creation/modification
+- Implement the exact recommendations shown in dry-run mode
+- Maintain idempotency (safe to run multiple times)
+- Preserve existing configurations where appropriate
+- Use established cross-account patterns with `get_client()` function
+
+### 📋 Implementation Integration (After Mutation)
 - [ ] config-deploy.toml configuration for Installer integration
-- [ ] Cross-account role assumption implementation  
-- [ ] Idempotency and existing configuration detection
-- [ ] End-to-end testing with real AWS environments
+- [ ] Enhanced cross-account role assumption patterns
+- [ ] Production deployment testing and validation
 
 ### 📋 Future Enhancements
 - [ ] Service-specific parameter extensions (e.g., custom Security Hub policies)
@@ -338,311 +343,4 @@ See the main [CLAUDE.md](../CLAUDE.md#git-workflow--publishing) for complete doc
 
 
 
-## Security Hub Implementation Guidance (Next Service - Most Complex)
 
-**READY FOR IMPLEMENTATION**: Complete guidance for implementing Security Hub as the final service in the descriptive implementation phase.
-
-### Why Security Hub is Most Complex
-
-**Organization-Wide Control Policy Management**:
-- **Multi-environment policies**: Separate PROD and DEV control policies with different requirements
-- **Organizational Unit assignment**: Different policies for production vs development OUs
-- **Control-level granularity**: Specific security controls enabled/disabled per environment type
-- **Policy creation dependencies**: Policies must exist before assignment to OUs
-
-**AWS Service Dependencies**:
-- **Findings aggregation**: Security Hub aggregates findings from GuardDuty, Config, Inspector, Access Analyzer
-- **Standards management**: AWS Foundational Security Standard, CIS, PCI DSS subscriptions
-- **Cross-service integration**: Requires other security services to be properly configured first
-
-### Security Hub Manual Steps to Automate
-
-**From modules/security_hub.py documentation:**
-
-1. **Org Account (Admin)**: Delegate administration to Security-Adm in all enabled regions
-2. **Security-Adm Account**: Set up central configuration and consolidated findings in all regions
-3. **Security-Adm Account**: Create PROD and DEV control policies:
-   - **PROD Policy**: Multi-zone deployment, backup plans, deletion protection, strict controls
-   - **DEV Policy**: Relaxed controls for development ease (allow KMS key deletion, etc.)
-   - **Auto-enable new controls**: DISABLED (manual control selection only)
-   - **Control selection**: Exact controls needed, one by one selection
-4. **Policy Assignment**:
-   - **PROD policy → Organization root** (production accounts inherit)
-   - **DEV policy → Development OUs** (IndividualBusinessUsers, Sandbox, SDLC OUs)
-5. **Finding Reset**: Suppress all findings to reset with new settings (24-hour regeneration)
-
-### Security Hub API Structure and Patterns
-
-**Service Principal**: `securityhub.amazonaws.com`
-
-**Key APIs for Discovery**:
-```python
-# Delegation Discovery
-organizations.list_delegated_administrators(ServicePrincipal='securityhub.amazonaws.com')
-
-# Security Hub Configuration  
-securityhub.describe_hub()                    # Hub status per region
-securityhub.get_enabled_standards()           # Standards subscriptions (CIS, AWS Foundational, etc.)
-securityhub.list_members()                    # Organization member accounts (paginated)
-securityhub.get_configuration_policy()        # Control policies (PROD/DEV)
-securityhub.list_configuration_policies()     # All policies (paginated)
-securityhub.get_configuration_policy_association()  # OU/account policy assignments
-
-# Findings and Controls
-securityhub.get_findings()                    # All findings (heavily paginated)
-securityhub.describe_standards_controls()     # Available controls per standard
-```
-
-**Critical Pagination Requirements**:
-- **list_members**: Organization accounts (potentially 100s)
-- **get_findings**: Thousands of findings across organization  
-- **list_configuration_policies**: Multiple PROD/DEV policies
-- **describe_standards_controls**: Hundreds of controls per standard
-
-### Security Hub Implementation Approach
-
-**Follow Established TDD Pattern**:
-
-1. **Create Discovery Script**: `test_real_aws_security_hub.py`
-   ```python
-   # Based on proven pattern from other services
-   # Discover current Security Hub state across all regions
-   # Document delegation status, hub configuration, policies, standards
-   # Save findings to security_hub_discovery_YYYYMMDD_HHMMSS.json
-   ```
-
-2. **Analyze Current State**: 
-   - Check if Security Hub already delegated
-   - Identify existing configuration policies
-   - Document current standards subscriptions  
-   - Map current OU policy assignments
-
-3. **Implement Descriptive Logic**:
-   ```python
-   def setup_security_hub(enabled, params, dry_run, verbose):
-       # Phase 1: Delegation discovery (like other services)
-       # Phase 2: Hub configuration analysis per region
-       # Phase 3: Control policy discovery and OU mapping
-       # Phase 4: Standards subscription analysis
-       # Phase 5: Comprehensive recommendations for missing setup
-   ```
-
-4. **Key Implementation Functions**:
-   ```python
-   def check_security_hub_delegation(admin_account, security_account, regions, verbose)
-   def check_security_hub_in_region(region, admin_account, security_account, cross_account_role, verbose)
-   def check_security_hub_policies(regions, admin_account, security_account, cross_account_role, verbose)
-   def check_security_hub_standards(regions, admin_account, security_account, cross_account_role, verbose)
-   def check_security_hub_ou_assignments(org_id, root_ou, policies, verbose)
-   ```
-
-### Security Hub Specific Complexity Factors
-
-**Multi-Environment Policy Logic**:
-```yaml
-PROD Policy Requirements:
-  - Multi-AZ deployment controls: ENABLED
-  - Backup plan controls: ENABLED  
-  - Deletion protection: ENABLED
-  - KMS key deletion: DISABLED
-  - Auto-enable new controls: DISABLED
-
-DEV Policy Requirements:
-  - Multi-AZ deployment controls: DISABLED
-  - Backup plan controls: DISABLED
-  - Deletion protection: DISABLED
-  - KMS key deletion: ENABLED  
-  - Auto-enable new controls: DISABLED
-```
-
-**Organizational Unit Mapping**:
-```yaml
-PROD Policy Assignment:
-  - Target: Organization Root (r-example12345)
-  - Scope: All accounts inherit unless overridden
-
-DEV Policy Assignment:
-  - Targets: 
-    - IndividualBusinessUsers OU
-    - Sandbox OU  
-    - SDLC OU
-  - Scope: Development accounts only
-```
-
-**Standards Management Complexity**:
-```yaml
-AWS Foundational Security Standard:
-  - Default subscription: REQUIRED
-  - Control customization: Per environment
-  - Finding suppression: After policy assignment
-
-CIS AWS Foundations Benchmark:
-  - Optional subscription: Organization choice
-  - Control overlap: With AWS Foundational
-  - Environment differences: PROD vs DEV
-
-PCI DSS Standard:
-  - Conditional subscription: If PCI compliance needed
-  - Control requirements: Strict for payment processing
-```
-
-### Security Hub Error Handling Patterns
-
-**Configuration Preservation Priority**:
-- **Existing policies**: Never overwrite custom PROD/DEV policies
-- **OU assignments**: Preserve existing policy assignments
-- **Standards subscriptions**: Don't modify existing standard selections
-- **Finding suppressions**: Respect existing suppression rules
-
-**Safety Rules Implementation**:
-```python
-if existing_prod_policy or existing_dev_policy:
-    print("⚠️  Custom Security Hub policies detected - preserving existing configuration")
-    print("🔍 Manual review recommended for policy compliance with OpenSecOps standards")
-    return True  # Skip policy creation to avoid conflicts
-
-if existing_ou_assignments:
-    print("⚠️  Custom OU policy assignments detected - preserving existing assignments")
-    print("📋 Review current assignments against OpenSecOps PROD/DEV requirements")
-```
-
-### Security Hub Testing Strategy
-
-**Test Implementation Requirements**:
-- **14 existing Security Hub tests** (stub implementation coverage)
-- **Add 6+ new tests** for real AWS functionality:
-  - Delegation discovery and cross-account access
-  - Multi-region hub configuration analysis
-  - PROD/DEV policy detection and recommendation
-  - Standards subscription discovery
-  - OU assignment validation
-  - Finding suppression guidance
-
-**Complex Mocking Requirements**:
-```python
-# Mock multi-region Security Hub configuration
-def mock_describe_hub_per_region():
-    return {'HubArn': 'arn:aws:securityhub:region:account:hub/default'}
-
-# Mock configuration policies (PROD/DEV)
-def mock_list_configuration_policies():
-    return {'ConfigurationPolicySummaryList': [
-        {'Id': 'prod-policy-123', 'Name': 'OpenSecOps-PROD'},
-        {'Id': 'dev-policy-456', 'Name': 'OpenSecOps-DEV'}
-    ]}
-```
-
-### Expected Implementation Output
-
-**When Security Hub Disabled**:
-```yaml
-Security Hub Deactivation Analysis:
-  • Delegation Status: Delegated to Security-Adm (account 234567890123)
-  • Hub Configuration: Active in 2 regions (eu-north-1, us-east-1)
-  • Control Policies: 2 custom policies detected (PROD, DEV)
-  • Policy Assignments: 
-    - PROD → Organization Root
-    - DEV → 3 development OUs
-  • Standards: AWS Foundational (enabled), CIS (enabled)
-  • Findings: 1,247 active findings across organization
-
-Recommended Deactivation Steps:
-  1. Document current policy configurations for future reference
-  2. Remove policy assignments from organizational units
-  3. Delete custom PROD/DEV configuration policies
-  4. Unsubscribe from security standards per region
-  5. Remove member accounts from Security Hub organization  
-  6. Disable Security Hub in all regions
-  7. Remove Security Hub delegation from Security-Adm account
-```
-
-**When Security Hub Enabled but Needs Configuration**:
-```yaml
-Security Hub Configuration Requirements:
-  🌍 Region: eu-north-1
-    • Missing: PROD control policy for production accounts
-    • Missing: DEV control policy for development accounts  
-    • Missing: Policy assignment to organization root (PROD)
-    • Missing: Policy assignment to development OUs (DEV)
-    • Recommend: Subscribe to AWS Foundational Security Standard
-    • Recommend: Configure control customization per environment
-
-  📋 PROD Policy Requirements:
-    • Multi-AZ deployment controls: Must be enabled
-    • Backup plan inclusion controls: Must be enabled
-    • Resource deletion protection: Must be enabled
-    • KMS key deletion prevention: Must be enabled
-    • Auto-enable new controls: Must be disabled (manual selection)
-
-  📋 DEV Policy Requirements:  
-    • Multi-AZ deployment controls: Should be disabled
-    • Backup plan inclusion controls: Should be disabled
-    • Resource deletion protection: Should be disabled
-    • KMS key deletion: Should be allowed for development
-    • Auto-enable new controls: Must be disabled (manual selection)
-```
-
-**Implementation Priority**: Security Hub is the final service needed to complete the descriptive implementation phase. Its complexity requires the established TDD pattern with real AWS discovery first, followed by comprehensive descriptive logic that provides exact specifications for future mutation implementation.
-
-## Testing
-
-**ALL CRITICAL TESTING RULES ARE AT THE TOP OF THIS DOCUMENT**
-
-This component follows the comprehensive testing methodology established for SOAR, documented at [SOAR/tests/README.md](../SOAR/tests/README.md). The testing strategy uses pytest + moto for AWS service mocking with proven patterns for security-critical components.
-
-**Test Execution:**
-```bash
-pytest tests/                          # Run all tests  
-pytest tests/unit/modules/             # Service module tests
-pytest tests/ --cov=. --cov-report=html # With coverage
-```
-
-**Key Patterns (based on SOAR methodology):**
-- All tests use moto mocking (no real AWS calls)
-- Cross-account discovery patterns for delegated admin services
-- Pagination required for all AWS list operations
-- BDD-style test specifications with GIVEN/WHEN/THEN structure
-- Centralized fixture management for consistent test data
-
-## Critical Implementation Learnings
-
-### **Cross-Account Discovery Patterns (MANDATORY)**
-
-**Problem**: Admin accounts have severely limited visibility into delegated security services.
-- Admin account shows 0 member accounts, cannot access organization configuration
-- Only delegated admin accounts have complete organization visibility
-- This affects ALL major AWS security services with delegation
-
-**Solution Pattern (Required for all security services)**:
-```python
-# 1. Always check delegation status FIRST
-orgs_client = boto3.client('organizations', region_name=region)
-delegated_admins = orgs_client.list_delegated_administrators(ServicePrincipal='servicename.amazonaws.com')
-
-is_delegated_to_security = False
-for admin in delegated_admins.get('DelegatedAdministrators', []):
-    if admin.get('Id') == security_account:
-        is_delegated_to_security = True
-        break
-
-# 2. IF delegated, switch to delegated admin for complete data
-if (is_delegated_to_security and cross_account_role and security_account != admin_account):
-    delegated_client = get_client('servicename', security_account, region, cross_account_role)
-    # Now access real organization configuration and member data
-```
-
-**Services Requiring This Pattern**: GuardDuty ✅, Security Hub, Access Analyzer, Detective, Inspector
-
-
-## Design Principles
-
-1. **Idempotent**: Scripts can be run multiple times safely with no side effects
-   - Always check current state before attempting operations
-   - Handle "already exists" conditions gracefully
-   - Support resuming from partial failures
-2. **Configurable**: All settings parameterized via `parameters.toml`
-3. **Simple**: Script-based approach, no complex infrastructure
-4. **Consistent**: Follows established Foundation component patterns
-5. **Robust**: Proper error handling and rollback capabilities
-6. **Auditable**: Clear logging of all actions taken
-7. **Well-Tested**: Comprehensive test coverage ensuring reliability and security
