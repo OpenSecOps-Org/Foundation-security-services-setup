@@ -314,7 +314,7 @@ The AWS Config module implementation demonstrated the power of Test-Driven Devel
 - ✅ Records ALL supported resources (`allSupported: true`)
 - ✅ Includes IAM global events (`includeGlobalResourceTypes: true`)
 - ✅ Continuous recording frequency
-- ✅ S3 delivery channel to `config-bucket-515966493378`
+- ✅ S3 delivery channel to `config-bucket-123456789012`
 - ✅ 242 Config rules (225 AWS managed + 17 custom)
 
 **us-east-1 (Other Region)**:
@@ -417,12 +417,12 @@ def setup_service_name(enabled, params, dry_run, verbose):
 **Parameter Dictionary Structure**:
 ```python
 params = {
-    'admin_account': '515966493378',
-    'security_account': '650251698273', 
+    'admin_account': '123456789012',
+    'security_account': '234567890123', 
     'regions': ['eu-north-1', 'us-east-1'],
     'cross_account_role': 'AWSControlTowerExecution',
-    'org_id': 'o-d09svdge39',
-    'root_ou': 'r-jyql'
+    'org_id': 'o-example12345',
+    'root_ou': 'r-example12345'
 }
 ```
 
@@ -564,7 +564,7 @@ Detective Deactivation Workflow:
   "discovery_insights": {
     "regions_with_delegation": 17,
     "regions_with_graphs": 0,
-    "detective_delegated_to": "650251698273 (Security-Adm)",
+    "detective_delegated_to": "234567890123 (Security-Adm)",
     "guardduty_regions": ["us-east-1", "eu-central-1", "eu-north-1"],
     "api_pagination": {
       "list_graphs": "NOT paginated - direct call",
@@ -877,7 +877,7 @@ def mock_list_configuration_policies():
 **When Security Hub Disabled**:
 ```yaml
 Security Hub Deactivation Analysis:
-  • Delegation Status: Delegated to Security-Adm (account 650251698273)
+  • Delegation Status: Delegated to Security-Adm (account 234567890123)
   • Hub Configuration: Active in 2 regions (eu-north-1, us-east-1)
   • Control Policies: 2 custom policies detected (PROD, DEV)
   • Policy Assignments: 
