@@ -162,7 +162,9 @@ To disable specific services or enable optional ones:
 
 ## Key Features
 
-* **Idempotent operation** - Safe to run multiple times
+* **Non-destructive operation** - Never overwrites existing configurations, backs off safely when services are already configured
+* **Idempotent operation** - Safe to run multiple times with consistent results
+* **Configuration detection** - Identifies existing setups and reports what's already configured
 * **Dry-run support** - Preview changes without making modifications
 * **Selective service enablement** - Enable only the services you need
 * **Automated cross-account setup** - Handles delegation and role assumptions
@@ -175,8 +177,37 @@ To disable specific services or enable optional ones:
 **Time Savings**: What used to take hours or days of manual configuration now takes minutes  
 **Consistency**: Eliminates configuration drift and human error across environments  
 **Flexibility**: Enable exactly the services you need with simple Yes/No configuration  
-**Safety**: Dry-run mode and comprehensive testing ensure reliable operations  
+**Safety**: Non-destructive operation, dry-run mode, and comprehensive testing ensure reliable operations  
+**Peace of Mind**: Never overwrites existing configurations - completely safe to run in any environment  
 **Scalability**: Handle complex multi-region, multi-account scenarios effortlessly
+
+## Safety & Non-Destructive Operation
+
+This utility is designed to be **completely safe** when run against existing AWS environments:
+
+### Configuration Detection & Preservation
+- **Detects existing setups**: Automatically identifies services that are already configured
+- **Backs off gracefully**: Never overwrites or modifies existing custom configurations
+- **Reports current state**: Shows you what's already configured and how
+- **Preserves custom settings**: Maintains existing policies, settings, and delegations
+
+### What Happens with Already Configured Services
+When the utility encounters services that are already set up:
+
+✅ **Security Hub with existing policies** → Skips policy creation, reports existing PROD/DEV policies  
+✅ **GuardDuty already delegated** → Skips delegation, reports current delegation to different account (with warning)  
+✅ **Detective with existing configuration** → Preserves settings, reports current region configuration  
+✅ **Inspector with custom schedules** → Maintains custom assessment schedules, reports existing setup  
+✅ **Access Analyzer with different scopes** → Skips creation, reports existing analyzer configurations  
+✅ **AWS Config with different delivery channels** → Preserves existing channels and configuration recorders  
+
+### Safety Guarantees
+- **No configuration loss**: Existing setups are never overwritten or deleted
+- **Clear status reporting**: Always tells you what was skipped and why
+- **Warning system**: Alerts when existing configurations differ from expected setup
+- **Rollback unnecessary**: Since nothing destructive happens, no rollback mechanism needed
+
+This makes the utility safe to run in any environment, whether services are already configured or not.
 
 ## What Gets Configured
 
