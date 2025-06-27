@@ -1,0 +1,405 @@
+{
+  "timestamp": "2025-06-27T11:02:51.395696",
+  "params_used": {
+    "admin_account": "515966493378",
+    "security_account": "650251698273",
+    "regions": [
+      "eu-north-1",
+      "us-east-1"
+    ],
+    "cross_account_role": "AWSControlTowerExecution",
+    "org_id": "o-d09svdge39",
+    "root_ou": "r-jyql"
+  },
+  "regions_checked": [
+    "eu-north-1",
+    "us-east-1"
+  ],
+  "guardduty_state": {
+    "eu-north-1": {
+      "region": "eu-north-1",
+      "guardduty_enabled": true,
+      "detector_id": "56c909d6a827d835be29e1d8619632f2",
+      "detector_status": "ENABLED",
+      "delegated_admin": {
+        "Id": "650251698273",
+        "Arn": "arn:aws:organizations::515966493378:account/o-d09svdge39/650251698273",
+        "Email": "accounts+security-adm@opensecops.org",
+        "Name": "Security-Adm",
+        "Status": "ACTIVE",
+        "JoinedMethod": "CREATED",
+        "JoinedTimestamp": "2024-09-19 15:25:21.260000+02:00",
+        "DelegationEnabledDate": "2024-09-21 10:32:03.434000+02:00"
+      },
+      "delegation_status": "delegated",
+      "members": [
+        {
+          "AccountId": "047719641334",
+          "DetectorId": "66c90c9e34784d9251fb401d464cfe4c",
+          "MasterId": "650251698273",
+          "RelationshipStatus": "Enabled",
+          "UpdatedAt": "2024-09-22T10:15:21.370Z",
+          "AdministratorId": "650251698273"
+        },
+        {
+          "AccountId": "084828560430",
+          "DetectorId": "b0c90d755b3fcc8ac3a7211d020dee36",
+          "MasterId": "650251698273",
+          "RelationshipStatus": "Enabled",
+          "UpdatedAt": "2024-09-22T18:05:21.295Z",
+          "AdministratorId": "650251698273"
+        },
+        {
+          "AccountId": "440744240258",
+          "DetectorId": "dcc909dc9d8ca5b41fa4358d5d09b193",
+          "MasterId": "650251698273",
+          "RelationshipStatus": "Enabled",
+          "UpdatedAt": "2024-09-21T08:35:58.714Z",
+          "AdministratorId": "650251698273"
+        },
+        {
+          "AccountId": "443370686438",
+          "DetectorId": "8ec909dcab76812ed2b4caf6f81fba49",
+          "MasterId": "650251698273",
+          "RelationshipStatus": "Enabled",
+          "UpdatedAt": "2024-09-21T08:35:58.725Z",
+          "AdministratorId": "650251698273"
+        },
+        {
+          "AccountId": "448049812669",
+          "DetectorId": "86c90ca07f2e25b1c1c788a1a8b0ff20",
+          "MasterId": "650251698273",
+          "RelationshipStatus": "Enabled",
+          "UpdatedAt": "2024-09-22T10:20:21.118Z",
+          "AdministratorId": "650251698273"
+        },
+        {
+          "AccountId": "515966493378",
+          "DetectorId": "56c909d6a827d835be29e1d8619632f2",
+          "MasterId": "650251698273",
+          "RelationshipStatus": "Enabled",
+          "UpdatedAt": "2024-09-21T08:35:58.683Z",
+          "AdministratorId": "650251698273"
+        },
+        {
+          "AccountId": "545009859070",
+          "DetectorId": "9ec909dc9e4aa7a31299dfd4d98de2f7",
+          "MasterId": "650251698273",
+          "RelationshipStatus": "Enabled",
+          "UpdatedAt": "2024-09-21T08:35:58.720Z",
+          "AdministratorId": "650251698273"
+        },
+        {
+          "AccountId": "686255964092",
+          "DetectorId": "7ec909dcabe3a0e6732a51487b32c628",
+          "MasterId": "650251698273",
+          "RelationshipStatus": "Enabled",
+          "UpdatedAt": "2024-09-21T08:35:58.731Z",
+          "AdministratorId": "650251698273"
+        },
+        {
+          "AccountId": "692859904520",
+          "DetectorId": "30c90ca513245400efd8b5ff5b42ff26",
+          "MasterId": "650251698273",
+          "RelationshipStatus": "Enabled",
+          "UpdatedAt": "2024-09-22T10:30:20.716Z",
+          "AdministratorId": "650251698273"
+        },
+        {
+          "AccountId": "954976329497",
+          "DetectorId": "26c90ca3b3188df9fa8d6bca32b64513",
+          "MasterId": "650251698273",
+          "RelationshipStatus": "Enabled",
+          "UpdatedAt": "2024-09-22T10:25:21.183Z",
+          "AdministratorId": "650251698273"
+        }
+      ],
+      "member_count": 10,
+      "organization_config": {
+        "ResponseMetadata": {
+          "RequestId": "46c4e66e-d71f-4697-8559-beb9e0a46cc4",
+          "HTTPStatusCode": 200,
+          "HTTPHeaders": {
+            "date": "Fri, 27 Jun 2025 09:02:53 GMT",
+            "content-type": "application/json",
+            "content-length": "1119",
+            "connection": "keep-alive",
+            "x-amzn-requestid": "46c4e66e-d71f-4697-8559-beb9e0a46cc4",
+            "access-control-allow-origin": "*",
+            "access-control-allow-headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-Content-Sha256,X-Amz-User-Agent,*,Date,X-Amz-Target,x-amzn-platform-id,x-amzn-trace-id",
+            "x-amz-apigw-id": "M0OpuEeugi0Ej2g=",
+            "access-control-expose-headers": "x-amzn-ErrorType,x-amzn-requestid,x-amzn-errormessage,x-amzn-trace-id,x-amz-apigw-id,Date",
+            "x-amzn-trace-id": "Root=1-685e5e3d-32d1e881053b725a70b2fae2;Parent=7df99649bfad9ed9;Sampled=0;Lineage=1:e041dc66:0",
+            "access-control-max-age": "86400"
+          },
+          "RetryAttempts": 0
+        },
+        "AutoEnable": true,
+        "MemberAccountLimitReached": false,
+        "DataSources": {
+          "S3Logs": {
+            "AutoEnable": true
+          },
+          "Kubernetes": {
+            "AuditLogs": {
+              "AutoEnable": false
+            }
+          },
+          "MalwareProtection": {
+            "ScanEc2InstanceWithFindings": {
+              "EbsVolumes": {
+                "AutoEnable": false
+              }
+            }
+          }
+        },
+        "Features": [
+          {
+            "Name": "EBS_MALWARE_PROTECTION",
+            "AutoEnable": "NONE"
+          },
+          {
+            "Name": "RUNTIME_MONITORING",
+            "AutoEnable": "NONE",
+            "AdditionalConfiguration": [
+              {
+                "Name": "ECS_FARGATE_AGENT_MANAGEMENT",
+                "AutoEnable": "NONE"
+              },
+              {
+                "Name": "EC2_AGENT_MANAGEMENT",
+                "AutoEnable": "NONE"
+              },
+              {
+                "Name": "EKS_ADDON_MANAGEMENT",
+                "AutoEnable": "NONE"
+              }
+            ]
+          },
+          {
+            "Name": "EKS_RUNTIME_MONITORING",
+            "AutoEnable": "NONE",
+            "AdditionalConfiguration": [
+              {
+                "Name": "EKS_ADDON_MANAGEMENT",
+                "AutoEnable": "NONE"
+              }
+            ]
+          },
+          {
+            "Name": "S3_DATA_EVENTS",
+            "AutoEnable": "ALL"
+          },
+          {
+            "Name": "LAMBDA_NETWORK_LOGS",
+            "AutoEnable": "NONE"
+          },
+          {
+            "Name": "EKS_AUDIT_LOGS",
+            "AutoEnable": "NONE"
+          },
+          {
+            "Name": "RDS_LOGIN_EVENTS",
+            "AutoEnable": "NONE"
+          }
+        ],
+        "AutoEnableOrganizationMembers": "ALL"
+      },
+      "errors": []
+    },
+    "us-east-1": {
+      "region": "us-east-1",
+      "guardduty_enabled": true,
+      "detector_id": "0ec909d8a800bb5dff4c83ec9939992c",
+      "detector_status": "ENABLED",
+      "delegated_admin": {
+        "Id": "650251698273",
+        "Arn": "arn:aws:organizations::515966493378:account/o-d09svdge39/650251698273",
+        "Email": "accounts+security-adm@opensecops.org",
+        "Name": "Security-Adm",
+        "Status": "ACTIVE",
+        "JoinedMethod": "CREATED",
+        "JoinedTimestamp": "2024-09-19 15:25:21.260000+02:00",
+        "DelegationEnabledDate": "2024-09-21 10:32:03.434000+02:00"
+      },
+      "delegation_status": "delegated",
+      "members": [
+        {
+          "AccountId": "047719641334",
+          "DetectorId": "2ac90c9e33c87637ff601e8f60b1c27f",
+          "MasterId": "650251698273",
+          "RelationshipStatus": "Enabled",
+          "UpdatedAt": "2024-09-22T10:15:21.370Z",
+          "AdministratorId": "650251698273"
+        },
+        {
+          "AccountId": "084828560430",
+          "DetectorId": "cec90d755a235113d8dd0da9d9aebda6",
+          "MasterId": "650251698273",
+          "RelationshipStatus": "Enabled",
+          "UpdatedAt": "2024-09-22T18:05:21.295Z",
+          "AdministratorId": "650251698273"
+        },
+        {
+          "AccountId": "440744240258",
+          "DetectorId": "84c909dd46aac2e7504638a1186e9ef1",
+          "MasterId": "650251698273",
+          "RelationshipStatus": "Enabled",
+          "UpdatedAt": "2024-09-21T08:37:25.710Z",
+          "AdministratorId": "650251698273"
+        },
+        {
+          "AccountId": "443370686438",
+          "DetectorId": "00c909dd57db507622d8c59125bcedc9",
+          "MasterId": "650251698273",
+          "RelationshipStatus": "Enabled",
+          "UpdatedAt": "2024-09-21T08:37:25.721Z",
+          "AdministratorId": "650251698273"
+        },
+        {
+          "AccountId": "448049812669",
+          "DetectorId": "14c90ca07dbebaa712585c289de585c2",
+          "MasterId": "650251698273",
+          "RelationshipStatus": "Enabled",
+          "UpdatedAt": "2024-09-22T10:20:21.118Z",
+          "AdministratorId": "650251698273"
+        },
+        {
+          "AccountId": "515966493378",
+          "DetectorId": "0ec909d8a800bb5dff4c83ec9939992c",
+          "MasterId": "650251698273",
+          "RelationshipStatus": "Enabled",
+          "UpdatedAt": "2024-09-21T08:37:25.704Z",
+          "AdministratorId": "650251698273"
+        },
+        {
+          "AccountId": "545009859070",
+          "DetectorId": "5cc909dd469d1897acef36389e306d37",
+          "MasterId": "650251698273",
+          "RelationshipStatus": "Enabled",
+          "UpdatedAt": "2024-09-21T08:37:25.715Z",
+          "AdministratorId": "650251698273"
+        },
+        {
+          "AccountId": "686255964092",
+          "DetectorId": "06c909dd596f0fbf57fe8f0e46dd4e65",
+          "MasterId": "650251698273",
+          "RelationshipStatus": "Enabled",
+          "UpdatedAt": "2024-09-21T08:37:25.726Z",
+          "AdministratorId": "650251698273"
+        },
+        {
+          "AccountId": "692859904520",
+          "DetectorId": "92c90ca511bab3d87d2c3c651e3c7daa",
+          "MasterId": "650251698273",
+          "RelationshipStatus": "Enabled",
+          "UpdatedAt": "2024-09-22T10:30:20.716Z",
+          "AdministratorId": "650251698273"
+        },
+        {
+          "AccountId": "954976329497",
+          "DetectorId": "eec90ca3b21437a053145e48623cd0e8",
+          "MasterId": "650251698273",
+          "RelationshipStatus": "Enabled",
+          "UpdatedAt": "2024-09-22T10:25:21.183Z",
+          "AdministratorId": "650251698273"
+        }
+      ],
+      "member_count": 10,
+      "organization_config": {
+        "ResponseMetadata": {
+          "RequestId": "d555a24d-9295-47be-8771-636fede87e13",
+          "HTTPStatusCode": 200,
+          "HTTPHeaders": {
+            "date": "Fri, 27 Jun 2025 09:02:56 GMT",
+            "content-type": "application/json",
+            "content-length": "1119",
+            "connection": "keep-alive",
+            "x-amzn-requestid": "d555a24d-9295-47be-8771-636fede87e13",
+            "access-control-allow-origin": "*",
+            "access-control-allow-headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-Content-Sha256,X-Amz-User-Agent,*,Date,X-Amz-Target,x-amzn-platform-id,x-amzn-trace-id",
+            "x-amz-apigw-id": "M0OqFGR1oAMEhig=",
+            "access-control-expose-headers": "x-amzn-ErrorType,x-amzn-requestid,x-amzn-errormessage,x-amzn-trace-id,x-amz-apigw-id,Date",
+            "x-amzn-trace-id": "Root=1-685e5e40-5fc2d5a51ff309ad1ed05d21;Parent=286a7836c36b1d0c;Sampled=0;Lineage=1:5bdd2e79:0",
+            "access-control-max-age": "86400"
+          },
+          "RetryAttempts": 0
+        },
+        "AutoEnable": true,
+        "MemberAccountLimitReached": false,
+        "DataSources": {
+          "S3Logs": {
+            "AutoEnable": true
+          },
+          "Kubernetes": {
+            "AuditLogs": {
+              "AutoEnable": false
+            }
+          },
+          "MalwareProtection": {
+            "ScanEc2InstanceWithFindings": {
+              "EbsVolumes": {
+                "AutoEnable": false
+              }
+            }
+          }
+        },
+        "Features": [
+          {
+            "Name": "EBS_MALWARE_PROTECTION",
+            "AutoEnable": "NONE"
+          },
+          {
+            "Name": "RUNTIME_MONITORING",
+            "AutoEnable": "NONE",
+            "AdditionalConfiguration": [
+              {
+                "Name": "ECS_FARGATE_AGENT_MANAGEMENT",
+                "AutoEnable": "NONE"
+              },
+              {
+                "Name": "EC2_AGENT_MANAGEMENT",
+                "AutoEnable": "NONE"
+              },
+              {
+                "Name": "EKS_ADDON_MANAGEMENT",
+                "AutoEnable": "NONE"
+              }
+            ]
+          },
+          {
+            "Name": "EKS_RUNTIME_MONITORING",
+            "AutoEnable": "NONE",
+            "AdditionalConfiguration": [
+              {
+                "Name": "EKS_ADDON_MANAGEMENT",
+                "AutoEnable": "NONE"
+              }
+            ]
+          },
+          {
+            "Name": "S3_DATA_EVENTS",
+            "AutoEnable": "ALL"
+          },
+          {
+            "Name": "LAMBDA_NETWORK_LOGS",
+            "AutoEnable": "NONE"
+          },
+          {
+            "Name": "EKS_AUDIT_LOGS",
+            "AutoEnable": "NONE"
+          },
+          {
+            "Name": "RDS_LOGIN_EVENTS",
+            "AutoEnable": "NONE"
+          }
+        ],
+        "AutoEnableOrganizationMembers": "ALL"
+      },
+      "errors": []
+    }
+  },
+  "recommendations": [],
+  "warnings": [],
+  "errors": []
+}
