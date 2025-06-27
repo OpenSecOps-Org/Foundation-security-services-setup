@@ -30,19 +30,24 @@ def setup_aws_config(enabled, params, dry_run, verbose):
         
         if verbose:
             printc(GRAY, f"Enabled: {enabled}")
-            printc(GRAY, f"Main region: {params.get('main_region')}")
-            printc(GRAY, f"Other regions: {params.get('other_regions')}")
+            printc(GRAY, f"Regions: {params.get('regions')}")
             printc(GRAY, f"Organization ID: {params.get('org_id')}")
             printc(GRAY, f"Dry Run: {dry_run}")
             printc(GRAY, f"Verbose: {verbose}")
         
         if enabled.lower() == 'yes':
+            regions = params.get('regions', [])
+            main_region = regions[0] if regions else 'unknown'
+            other_regions = regions[1:] if len(regions) > 1 else []
+            
             if dry_run:
-                printc(YELLOW, f"DRY RUN: Would enable AWS Config in main region ({params.get('main_region')}) - remove IAM global filter")
-                printc(YELLOW, f"DRY RUN: Would enable AWS Config in other regions ({params.get('other_regions')}) - keep IAM global filter")
+                printc(YELLOW, f"DRY RUN: Would enable AWS Config in main region ({main_region}) - remove IAM global filter")
+                if other_regions:
+                    printc(YELLOW, f"DRY RUN: Would enable AWS Config in other regions ({other_regions}) - keep IAM global filter")
             else:
-                printc(YELLOW, f"TODO: Enable AWS Config in main region ({params.get('main_region')}) - remove IAM global filter")
-                printc(YELLOW, f"TODO: Enable AWS Config in other regions ({params.get('other_regions')}) - keep IAM global filter")
+                printc(YELLOW, f"TODO: Enable AWS Config in main region ({main_region}) - remove IAM global filter")
+                if other_regions:
+                    printc(YELLOW, f"TODO: Enable AWS Config in other regions ({other_regions}) - keep IAM global filter")
         else:
             printc(GRAY, "AWS Config is disabled - skipping")
             

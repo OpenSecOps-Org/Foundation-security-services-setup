@@ -34,32 +34,26 @@ Foundation-security-services-setup/
 │   ├── deploy.py               # Core deployment logic
 │   ├── setup.zsh               # Git setup
 │   └── publish.zsh             # Publishing workflow
-├── setup-security-services*    # Central orchestration script
-├── modules/                     # Service-specific implementation modules
-│   ├── aws_config.py*          # AWS Config setup functions
-│   ├── guardduty.py*           # GuardDuty setup functions
-│   ├── detective.py*           # Detective setup functions
-│   ├── inspector.py*           # Inspector setup functions
-│   ├── access_analyzer.py*     # IAM Access Analyzer setup functions
-│   └── security_hub.py*        # Security Hub setup functions
-└── lib/                         # Shared utility code (if needed)
-    ├── __init__.py*            # Python package marker
-    ├── aws_utils.py*           # Common AWS operations
-    ├── cross_account.py*       # Cross-account role assumption
-    └── validation.py*          # Common validation functions
-
-* = To be implemented
+├── setup-security-services     # Central orchestration script with shared utilities
+└── modules/                     # Service-specific implementation modules
+    ├── __init__.py             # Python package marker
+    ├── aws_config.py           # AWS Config setup functions
+    ├── guardduty.py            # GuardDuty setup functions
+    ├── detective.py            # Detective setup functions
+    ├── inspector.py            # Inspector setup functions
+    ├── access_analyzer.py      # IAM Access Analyzer setup functions
+    └── security_hub.py         # Security Hub setup functions
 ```
 
 ### Script-Based Architecture
 **Central Orchestration Approach:**
 - Single `setup-security-services` script orchestrates all security service configuration
 - Individual service modules in `modules/` directory contain service-specific logic
-- Shared utility code in `lib/` directory (cross-account operations, AWS utilities, validation)
+- Shared utility code (cross-account operations, AWS utilities, validation) lives in the main script
 - Services can be selectively enabled/disabled via parameters
 - Unified dry-run, idempotency, and error handling across all services
 
-**Important:** The `scripts/` directory is managed by the refresh script and should NOT be used for custom code. It gets deleted and recreated during updates. All custom shared code must go in the `lib/` directory.
+**Important:** The `scripts/` directory is managed by the refresh script and should NOT be used for custom code. It gets deleted and recreated during updates. All custom shared code must go in the main `setup-security-services` script or service modules.
 
 **Each service module:**
 1. Can be implemented as **zsh scripts** (using AWS CLI commands) or **Python scripts** (using boto3)
@@ -78,6 +72,20 @@ All scripts MUST be idempotent, meaning:
 - Handle partial completion gracefully
 - Allow safe re-execution after failures
 - Detect and preserve existing configurations
+
+### Safety and Configuration Preservation
+**CRITICAL**: Scripts must respect existing configurations and back off when appropriate:
+- **Never overwrite existing custom configurations** - only enable services that are completely unconfigured
+- **Detect existing setups** and skip configuration if resources already exist in a different configuration
+- **Service-specific safety rules** must be implemented per service:
+  - Security Hub: If PROD/DEV policies already exist, skip policy creation entirely
+  - GuardDuty: If already delegated to a different account, warn and skip
+  - Detective: If existing configuration detected, preserve settings
+  - Inspector: If custom assessment schedules exist, preserve them
+  - Access Analyzer: If analyzers already exist with different scopes, skip creation
+  - AWS Config: If delivery channels/configuration recorders exist with different settings, preserve them
+- **Always warn the user** when skipping operations due to existing configurations
+- **Provide clear status reporting** on what was skipped vs. what was configured
 
 ### Dry-Run Support
 All scripts MUST support `--dry-run` mode:
@@ -140,6 +148,12 @@ Single `[[Script]]` section references the central orchestration script:
 3. **Security-Adm**: Create PROD and DEV control policies with specific controls
 4. **Security-Adm**: Assign PROD policy to org root, DEV policy to development OUs
 5. **Security-Adm**: Suppress all findings to reset with new settings
+
+## Standalone Usage
+
+This repository can be used independently of the OpenSecOps Installer for organizations that want to use just the security services setup automation. The `setup-security-services` script accepts all required parameters via command line arguments, making it suitable for integration into other deployment pipelines or manual execution.
+
+See the README.md for detailed standalone usage instructions and parameter examples.
 
 ## Deployment Integration
 

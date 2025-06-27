@@ -37,6 +37,8 @@ InspectorEnabled = 'No'
 
 ## Deployment
 
+### Using OpenSecOps Installer
+
 Ensure you're authenticated to your organization management account:
 
 ```console
@@ -54,6 +56,40 @@ The script will:
 2. Configure enabled services in the organization management account
 3. Delegate administration to the security account
 4. Set up service-specific configurations and policies
+
+### Standalone Usage
+
+You can also run the setup script directly without the OpenSecOps Installer:
+
+```console
+./setup-security-services \
+  --aws-config Yes \
+  --guardduty Yes \
+  --security-hub Yes \
+  --access-analyzer Yes \
+  --detective No \
+  --inspector No \
+  --admin-account 123456789012 \
+  --security-account 234567890123 \
+  --regions us-east-1,us-west-2,eu-west-1 \
+  --cross-account-role AWSControlTowerExecution \
+  --org-id o-example12345 \
+  --root-ou r-example12345 \
+  --dry-run
+```
+
+**Required Parameters:**
+- `--admin-account`: Organization management account ID
+- `--security-account`: Security administration account ID  
+- `--regions`: Comma-separated list of regions (main region first)
+- `--cross-account-role`: Role name for cross-account access
+- `--org-id`: AWS Organization ID
+- `--root-ou`: Root organizational unit ID
+
+**Optional Parameters:**
+- `--aws-config`, `--guardduty`, `--security-hub`, `--access-analyzer`, `--detective`, `--inspector`: Enable/disable services (Yes/No)
+- `--dry-run`: Preview changes without making modifications
+- `--verbose`: Additional debugging output
 
 ## Features
 

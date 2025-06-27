@@ -37,14 +37,12 @@ def main():
     parser.add_argument('--inspector', help='Enable Inspector (Yes/No)')
     
     # AWS parameters
-    parser.add_argument('--admin-account', help='Admin account ID')
-    parser.add_argument('--security-account', help='Security account ID')
-    parser.add_argument('--main-region', help='Primary AWS region')
-    parser.add_argument('--other-regions', help='Additional enabled regions (comma-separated)')
-    parser.add_argument('--all-regions', help='All regions (comma-separated)')
-    parser.add_argument('--cross-account-role', help='Cross-account role name')
-    parser.add_argument('--org-id', help='Organization ID')
-    parser.add_argument('--root-ou', help='Root organizational unit ID')
+    parser.add_argument('--admin-account', required=True, help='Admin account ID')
+    parser.add_argument('--security-account', required=True, help='Security account ID')
+    parser.add_argument('--regions', required=True, help='All regions (comma-separated, main region first)')
+    parser.add_argument('--cross-account-role', required=True, help='Cross-account role name')
+    parser.add_argument('--org-id', required=True, help='Organization ID')
+    parser.add_argument('--root-ou', required=True, help='Root organizational unit ID')
     
     # Standard flags (automatically passed by deployment system)
     parser.add_argument('--dry-run', action='store_true', help='Show what would be done without making changes')
@@ -72,9 +70,7 @@ def main():
         printc(GRAY, "\nAWS parameters:")
         printc(GRAY, f"  --admin-account: {args.admin_account}")
         printc(GRAY, f"  --security-account: {args.security_account}")
-        printc(GRAY, f"  --main-region: {args.main_region}")
-        printc(GRAY, f"  --other-regions: {args.other_regions}")
-        printc(GRAY, f"  --all-regions: {args.all_regions}")
+        printc(GRAY, f"  --regions: {args.regions}")
         printc(GRAY, f"  --cross-account-role: {args.cross_account_role}")
         printc(GRAY, f"  --org-id: {args.org_id}")
         printc(GRAY, f"  --root-ou: {args.root_ou}")
@@ -82,22 +78,14 @@ def main():
         printc(GRAY, f"  --dry-run: {args.dry_run}")
         printc(GRAY, f"  --verbose: {args.verbose}")
     
-    # Parse region lists from comma-separated strings
-    other_regions_list = []
-    if args.other_regions:
-        other_regions_list = [region.strip() for region in args.other_regions.split(',')]
-    
-    all_regions_list = []
-    if args.all_regions:
-        all_regions_list = [region.strip() for region in args.all_regions.split(',')]
+    # Parse region list from comma-separated string (required parameter)
+    regions_list = [region.strip() for region in args.regions.split(',')]
     
     # Create parameters object for passing to service functions
     params = {
         'admin_account': args.admin_account,
         'security_account': args.security_account,
-        'main_region': args.main_region,
-        'other_regions': other_regions_list,
-        'all_regions': all_regions_list,
+        'regions': regions_list,
         'cross_account_role': args.cross_account_role,
         'org_id': args.org_id,
         'root_ou': args.root_ou
