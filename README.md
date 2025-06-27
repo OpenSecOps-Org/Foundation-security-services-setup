@@ -85,19 +85,35 @@ All services are properly delegated from the organization management account to 
 When running as part of the OpenSecOps Installer, services can be enabled/disabled via parameters in `Installer/apps/foundation/parameters.toml`:
 
 ```toml
+# --------------------------------------------------------------
+#
+# Foundation-security-services-setup
+#
+# --------------------------------------------------------------
+
 [Foundation-security-services-setup.setup-security-services]
+
 AWSConfigEnabled = 'Yes'
 GuardDutyEnabled = 'Yes'
 SecurityHubEnabled = 'Yes'
 IAMAccessAnalyzerEnabled = 'Yes'
 DetectiveEnabled = 'No'
 InspectorEnabled = 'No'
+
+admin-account = '{admin-account}'
+security-account = '{security-account}'
+main-region = '{main-region}'
+other-regions = '{other-regions}'
+all-regions = '{all-regions}'
+cross-account-role = '{cross-account-role}'
+org-id = '{org-id}'
+root-ou = '{root-ou}'
 ```
 
 **Getting Started**: Example configuration for this component can be found in `Installer/apps.example/foundation/parameters.toml`. 
 
 - **New installation**: Copy the entire file to `Installer/apps/foundation/parameters.toml`
-- **Existing installation**: Look for the `[Foundation-security-services-setup]` section in the example file and copy just that section to your existing `Installer/apps/foundation/parameters.toml`
+- **Existing installation**: Look for the complete `Foundation-security-services-setup` section (including the header comment block and all parameter bindings) in the example file and copy that entire section to your existing `Installer/apps/foundation/parameters.toml`
 
 Customize the service enable/disable settings as needed.
 
