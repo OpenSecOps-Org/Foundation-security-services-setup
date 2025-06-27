@@ -24,7 +24,7 @@
 
 ## Overview
 
-This Foundation component automates the manual security service configuration steps outlined in the OpenSecOps Foundation Installation Manual section "Activations & delegations" (pages 32-33). It eliminates the tedious console-clicking required to enable and configure AWS security services across the organization.
+This Foundation component automates the manual security service configuration steps required to enable and configure AWS security services across the organization. It eliminates the tedious console-clicking required for proper security service delegation and setup.
 
 ## Problem Statement
 
