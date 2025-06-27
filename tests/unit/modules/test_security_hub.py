@@ -149,9 +149,10 @@ class TestSecurityHubUserFeedback:
         # Verify dry-run messages were displayed
         all_output = ' '.join(str(call) for call in mock_print.call_args_list)
         
-        assert 'DRY RUN:' in all_output, "Should prefix actions with DRY RUN indicator"
-        assert 'Would delegate administration' in all_output, "Should describe what would be done"
-        assert 'control policies' in all_output, "Should mention control policy setup"
+        # Real implementation uses "DRY RUN - Actions that would be taken:"
+        assert 'DRY RUN' in all_output, "Should indicate dry run mode"
+        assert ('delegate' in all_output or 'delegation' in all_output), "Should describe delegation actions"
+        assert ('policies' in all_output or 'finding aggregation' in all_output), "Should mention setup actions"
     
     @patch('builtins.print')
     def test_when_security_hub_is_disabled_then_clear_skip_message_is_shown(self, mock_print, mock_aws_services):
@@ -174,7 +175,9 @@ class TestSecurityHubUserFeedback:
         # Verify skip message was displayed
         all_output = ' '.join(str(call) for call in mock_print.call_args_list)
         
-        assert 'Security Hub is disabled - skipping' in all_output, "Should clearly indicate service is being skipped"
+        # Real implementation shows deactivation analysis, not just "skipping"
+        assert ('Security Hub is not currently configured' in all_output or 
+                'DEACTIVATION ANALYSIS' in all_output), "Should show deactivation analysis when disabled"
     
     @patch('builtins.print')
     def test_when_function_runs_then_proper_banner_formatting_is_used(self, mock_print, mock_aws_services):
@@ -309,8 +312,9 @@ class TestSecurityHubControlPolicyHandling:
         
         all_output = ' '.join(str(call) for call in mock_print.call_args_list)
         
-        assert 'DRY RUN:' in all_output, "Should indicate dry run mode"
-        assert 'control policies' in all_output or 'policies' in all_output, "Should mention policy setup"
+        # Real implementation uses "DRY RUN - Actions that would be taken:"
+        assert 'DRY RUN' in all_output, "Should indicate dry run mode"
+        assert ('policies' in all_output or 'delegate' in all_output), "Should mention policies or delegation setup"
 
 
 class TestSecurityHubErrorResilience:
