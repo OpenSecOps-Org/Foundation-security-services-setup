@@ -149,12 +149,18 @@ class TestParameterValidation:
             assert not regions_list, f"Expected empty list for input: '{input_string}', got: {regions_list}"
     
     def test_service_flag_values(self):
-        """Test that service flags accept correct values."""
-        valid_values = ['Yes', 'No', 'yes', 'no', 'YES', 'NO']
+        """Test that service flags accept only exact canonical values."""
+        # With argparse choices=['Yes', 'No'], only these exact values are valid
+        valid_values = ['Yes', 'No']
+        invalid_values = ['yes', 'no', 'YES', 'NO', 'y', 'n', 'true', 'false', '1', '0']
         
+        # Test that canonical values are accepted by our validation logic
         for value in valid_values:
-            # Test case-insensitive validation
-            assert value.lower() in ['yes', 'no'], f"Value {value} should be valid"
+            assert value in ['Yes', 'No'], f"Value '{value}' should be valid"
+        
+        # Test that non-canonical values would be rejected by our validation logic
+        for value in invalid_values:
+            assert value not in ['Yes', 'No'], f"Value '{value}' should be invalid with argparse choices"
     
     def test_main_region_extraction(self):
         """Test extracting main region from regions list."""

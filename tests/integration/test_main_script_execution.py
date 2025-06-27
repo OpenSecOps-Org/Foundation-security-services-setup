@@ -395,3 +395,25 @@ class TestErrorHandlingIntegration:
         # Error messages go to stdout, not stderr in our implementation
         assert "ERROR: At least one region must be specified" in result.stdout
         assert "cannot be empty or contain only whitespace" in result.stdout
+    
+    def test_invalid_service_flag_values_rejected_by_argparse(self):
+        """Test that argparse choices properly reject invalid service flag values."""
+        invalid_service_values = ['yes', 'no', 'YES', 'NO', 'y', 'n', 'true', 'false', '1', '0']
+        
+        for invalid_value in invalid_service_values:
+            result = subprocess.run([
+                sys.executable, './setup-security-services',
+                '--admin-account', '123456789012',
+                '--security-account', '234567890123',
+                '--regions', 'us-east-1',
+                '--cross-account-role', 'AWSControlTowerExecution',
+                '--org-id', 'o-example12345',
+                '--root-ou', 'r-example12345',
+                '--aws-config', invalid_value,  # Test with invalid value
+                '--dry-run'
+            ], capture_output=True, text=True,
+            cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+            
+            # argparse should reject invalid choices with exit code 2
+            assert result.returncode == 2, f"Expected exit code 2 for invalid value '{invalid_value}', got {result.returncode}"
+            assert "invalid choice" in result.stderr, f"Should show 'invalid choice' error for '{invalid_value}'"
