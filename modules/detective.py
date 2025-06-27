@@ -262,7 +262,7 @@ def setup_detective(enabled, params, dry_run, verbose):
                 
                 if not status['detective_enabled']:
                     printc(YELLOW, f"    • Missing: Detective investigation capabilities")
-                    printc(YELLOW, f"      Recommend: Create Detective behavior graph for security investigation")
+                    printc(YELLOW, f"      Recommend: Enable Detective investigation capabilities")
                     printc(YELLOW, f"      Recommend: Add existing organization accounts as Detective members")
                     printc(YELLOW, f"      Recommend: Enable automatic member invitation for new accounts")
                     printc(YELLOW, f"      Recommend: Configure data retention period (default: 365 days)")
@@ -281,7 +281,7 @@ def setup_detective(enabled, params, dry_run, verbose):
                     action_count += 1
                 
                 if not status['detective_enabled']:
-                    printc(YELLOW, f"  {action_count}. Create Detective behavior graph in {region}")
+                    printc(YELLOW, f"  {action_count}. Enable Detective investigation capabilities in {region}")
                     action_count += 1
                     printc(YELLOW, f"  {action_count}. Configure data retention settings for Detective in {region}")
                     action_count += 1
