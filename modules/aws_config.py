@@ -87,7 +87,7 @@ def setup_aws_config(enabled, params, dry_run, verbose):
         # Report findings and take action
         if not any_changes_needed:
             printc(GREEN, "✅ AWS Config is already properly configured in all regions!")
-            printc(GREEN, "   No changes needed - existing setup meets OpenSecOps standards.")
+            printc(GREEN, "   No changes needed - existing setup meets stringent security standards.")
             
             # Show detailed configuration for each region ONLY when verbose
             if verbose:

@@ -17,6 +17,35 @@ def printc(color, string, **kwargs):
     """Print colored output with proper line clearing"""
     print(f"{color}{string}\033[K{END}", **kwargs)
 
+def get_client(service: str, account_id: str, region: str, role_name: str):
+    """
+    Create a cross-account AWS client using role assumption.
+    This matches the pattern used in SOAR and other Foundation components.
+    """
+    import boto3
+    try:
+        sts_client = boto3.client('sts')
+        
+        # Assume role in the target account
+        response = sts_client.assume_role(
+            RoleArn=f"arn:aws:iam::{account_id}:role/{role_name}",
+            RoleSessionName=f"foundation_security_services_{account_id}"
+        )
+        
+        credentials = response['Credentials']
+        
+        # Return configured client
+        return boto3.client(
+            service,
+            aws_access_key_id=credentials['AccessKeyId'],
+            aws_secret_access_key=credentials['SecretAccessKey'],
+            aws_session_token=credentials['SessionToken'],
+            region_name=region
+        )
+    except Exception as e:
+        printc(RED, f"    ❌ Failed to assume role in account {account_id}: {str(e)}")
+        return None
+
 # Import service modules
 from modules.aws_config import setup_aws_config
 from modules.guardduty import setup_guardduty
@@ -63,8 +92,8 @@ def main():
         printc(GRAY, "\nService flags:")
         printc(GRAY, f"  --aws-config: {args.aws_config}")
         printc(GRAY, f"  --guardduty: {args.guardduty}")
-        printc(GRAY, f"  --security-hub: {args.security_hub}")
         printc(GRAY, f"  --access-analyzer: {args.access_analyzer}")
+        printc(GRAY, f"  --security-hub: {args.security_hub}")
         printc(GRAY, f"  --detective: {args.detective}")
         printc(GRAY, f"  --inspector: {args.inspector}")
         printc(GRAY, "\nAWS parameters:")
@@ -102,12 +131,12 @@ def main():
     # Track results for final summary
     results = {}
     
-    # Execute security service setup functions in order (most basic to most expendable)
+    # Execute security service setup functions in optimal dependency order
     services = [
         ("AWS Config", setup_aws_config, args.aws_config),
         ("GuardDuty", setup_guardduty, args.guardduty),
-        ("Security Hub", setup_security_hub, args.security_hub),
         ("IAM Access Analyzer", setup_access_analyzer, args.access_analyzer),
+        ("Security Hub", setup_security_hub, args.security_hub),  # After core services, before optional ones
         ("Detective", setup_detective, args.detective),
         ("Inspector", setup_inspector, args.inspector),
     ]
