@@ -118,3 +118,47 @@ To disable specific services or enable optional ones:
 * **Access Analyzer**: Organization-wide analyzers for external and unused access detection
 * **Detective**: Investigation capabilities across the organization (if enabled)
 * **Inspector**: Vulnerability assessments with auto-activation (if enabled)
+
+## Testing
+
+This component includes comprehensive test coverage following TDD methodology with pytest and AWS mocking.
+
+### Running Tests
+
+**Install test dependencies:**
+```console
+pip install pytest pytest-cov "moto[all]" boto3
+```
+
+**Run all tests:**
+```console
+pytest tests/
+```
+
+**Run specific test categories:**
+```console
+pytest tests/unit/                     # Unit tests only
+pytest tests/integration/              # Integration tests only
+pytest tests/unit/modules/             # Service module tests
+```
+
+**Run with coverage:**
+```console
+pytest tests/ --cov=modules --cov-report=term-missing
+```
+
+**Run tests for specific service:**
+```console
+pytest tests/unit/modules/test_aws_config.py -v
+```
+
+### Test Categories
+
+* **Unit Tests**: Test individual service modules and parameter validation
+  - AWS Config module: comprehensive tests covering all functionality
+  - Parameter validation: tests for security and input validation
+* **Integration Tests**: Test main script execution and service coordination
+  - Script execution flow, parameter parsing, error handling
+  - Service module integration through main script interface
+
+All tests use AWS mocking (moto) for safe testing without real AWS resources. Tests work in complete isolation with no external dependencies.

@@ -28,6 +28,12 @@ def setup_aws_config(enabled, params, dry_run, verbose):
         printc(LIGHT_BLUE, "AWS CONFIG SETUP")
         printc(LIGHT_BLUE, "="*60)
         
+        # Handle None/invalid parameters defensively
+        if params is None:
+            params = {}
+        if enabled is None:
+            enabled = 'No'
+        
         if verbose:
             printc(GRAY, f"Enabled: {enabled}")
             printc(GRAY, f"Regions: {params.get('regions')}")
@@ -35,7 +41,7 @@ def setup_aws_config(enabled, params, dry_run, verbose):
             printc(GRAY, f"Dry Run: {dry_run}")
             printc(GRAY, f"Verbose: {verbose}")
         
-        if enabled.lower() == 'yes':
+        if str(enabled).lower() == 'yes':
             regions = params.get('regions', [])
             main_region = regions[0] if regions else 'unknown'
             other_regions = regions[1:] if len(regions) > 1 else []
