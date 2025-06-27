@@ -2,6 +2,8 @@
 
 **Automated AWS security service configuration for infrastructure engineers**
 
+> **⚠️ PRE-RELEASE VERSION (v0.1.0)**: This version provides comprehensive read-only analysis and discovery of AWS security services. It does not yet create or modify AWS resources. Full automation capabilities coming in v1.0.0.
+
 ## The Problem
 
 Setting up AWS security services across an organization is **time-consuming, repetitive, and error-prone**. Infrastructure engineers face several challenges:
