@@ -75,13 +75,16 @@ All services are properly delegated from the organization management account to 
 
 ## Prerequisites
 
+### For All Usage (OpenSecOps and Standalone)
 * AWS CLI configured with SystemAdministrator access to the organization management account
 * Active AWS SSO login session
+
+### For OpenSecOps Installer Usage Only
 * Accounts defined in `Installer/apps/accounts.toml`
 
-## Configuration
+## Configuration (OpenSecOps Installer Only)
 
-Services can be enabled/disabled via parameters in `Installer/apps/foundation/parameters.toml`:
+When running as part of the OpenSecOps Installer, services can be enabled/disabled via parameters in `Installer/apps/foundation/parameters.toml`:
 
 ```toml
 [Foundation-security-services-setup.setup-security-services]
@@ -92,6 +95,8 @@ IAMAccessAnalyzerEnabled = 'Yes'
 DetectiveEnabled = 'No'
 InspectorEnabled = 'No'
 ```
+
+**Note**: This configuration method only applies when using the OpenSecOps Installer. For standalone usage, all parameters are passed via command-line arguments as shown in the usage examples below.
 
 ## Deployment
 
