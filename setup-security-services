@@ -29,12 +29,12 @@ def main():
     parser = argparse.ArgumentParser(description='Setup AWS Security Services')
     
     # Service enable/disable flags
-    parser.add_argument('--aws-config', default='Yes', help='Enable AWS Config (Yes/No, default: Yes)')
-    parser.add_argument('--guardduty', default='Yes', help='Enable GuardDuty (Yes/No, default: Yes)')
-    parser.add_argument('--security-hub', default='Yes', help='Enable Security Hub (Yes/No, default: Yes)')
-    parser.add_argument('--access-analyzer', default='Yes', help='Enable IAM Access Analyzer (Yes/No, default: Yes)')
-    parser.add_argument('--detective', default='No', help='Enable Detective (Yes/No, default: No)')
-    parser.add_argument('--inspector', default='No', help='Enable Inspector (Yes/No, default: No)')
+    parser.add_argument('--aws-config', default='Yes', choices=['Yes', 'No'], help='Enable AWS Config (Yes/No, default: Yes)')
+    parser.add_argument('--guardduty', default='Yes', choices=['Yes', 'No'], help='Enable GuardDuty (Yes/No, default: Yes)')
+    parser.add_argument('--security-hub', default='Yes', choices=['Yes', 'No'], help='Enable Security Hub (Yes/No, default: Yes)')
+    parser.add_argument('--access-analyzer', default='Yes', choices=['Yes', 'No'], help='Enable IAM Access Analyzer (Yes/No, default: Yes)')
+    parser.add_argument('--detective', default='No', choices=['Yes', 'No'], help='Enable Detective (Yes/No, default: No)')
+    parser.add_argument('--inspector', default='No', choices=['Yes', 'No'], help='Enable Inspector (Yes/No, default: No)')
     
     # AWS parameters
     parser.add_argument('--admin-account', required=True, help='Admin account ID')

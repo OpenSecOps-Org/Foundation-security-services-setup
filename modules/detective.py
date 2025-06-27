@@ -29,10 +29,12 @@ def setup_detective(enabled, params, dry_run, verbose):
         
         if verbose:
             printc(GRAY, f"Enabled: {enabled}")
+            printc(GRAY, f"Regions: {params['regions']}")
+            printc(GRAY, f"Organization ID: {params['org_id']}")
             printc(GRAY, f"Dry Run: {dry_run}")
             printc(GRAY, f"Verbose: {verbose}")
         
-        if enabled.lower() == 'yes':
+        if enabled == 'Yes':
             if dry_run:
                 printc(YELLOW, "DRY RUN: Would delegate Detective to Security-Adm in all regions")
                 printc(YELLOW, "DRY RUN: Would configure Detective in all selected regions")

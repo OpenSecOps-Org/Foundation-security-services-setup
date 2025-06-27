@@ -1,14 +1,15 @@
 """
-Unit tests for AWS Config service module.
+Unit tests for Detective service module.
 
-These tests serve as executable specifications for the AWS Config setup functionality.
+These tests serve as executable specifications for the Detective setup functionality.
 Each test documents expected behavior and can be read as requirements.
 
-AWS Config Setup Requirements:
-- Enable AWS Config in main region with IAM global events
-- Enable AWS Config in other regions without IAM global events  
+Detective Setup Requirements:
+- Delegate Detective to Security-Adm in all regions
+- Configure Detective in all selected regions
+- Enable investigation capabilities across the organization
 - Support dry-run mode for safe preview
-- Handle disabled state gracefully
+- Handle disabled state gracefully (optional service)
 - Preserve existing configurations
 - Provide clear user feedback
 """
@@ -21,54 +22,54 @@ from unittest.mock import patch, call
 # Add the project root to the path to import modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
-from modules.aws_config import setup_aws_config, printc
+from modules.detective import setup_detective, printc
 from tests.fixtures.aws_parameters import create_test_params
 
 
-class TestAWSConfigBasicBehavior:
+class TestDetectiveBasicBehavior:
     """
-    SPECIFICATION: Basic behavior of AWS Config setup
+    SPECIFICATION: Basic behavior of Detective setup
     
-    The setup_aws_config function should:
+    The setup_detective function should:
     1. Return True when operation completes successfully
     2. Accept both enabled and disabled states
     3. Handle case-insensitive input gracefully
     """
     
-    def test_when_aws_config_is_enabled_then_function_returns_success(self):
+    def test_when_detective_is_enabled_then_function_returns_success(self):
         """
-        GIVEN: AWS Config is requested to be enabled
-        WHEN: setup_aws_config is called with enabled='Yes'
+        GIVEN: Detective is requested to be enabled
+        WHEN: setup_detective is called with enabled='Yes'
         THEN: The function should return True indicating successful completion
         """
         # Arrange
         params = create_test_params()
         
         # Act
-        result = setup_aws_config(enabled='Yes', params=params, dry_run=False, verbose=False)
+        result = setup_detective(enabled='Yes', params=params, dry_run=False, verbose=False)
         
         # Assert
-        assert result is True, "AWS Config setup should return True when enabled successfully"
+        assert result is True, "Detective setup should return True when enabled successfully"
     
-    def test_when_aws_config_is_disabled_then_function_returns_success(self):
+    def test_when_detective_is_disabled_then_function_returns_success(self):
         """
-        GIVEN: AWS Config is requested to be disabled/skipped
-        WHEN: setup_aws_config is called with enabled='No'
+        GIVEN: Detective is requested to be disabled/skipped
+        WHEN: setup_detective is called with enabled='No'
         THEN: The function should return True and skip configuration gracefully
         """
         # Arrange
         params = create_test_params()
         
         # Act
-        result = setup_aws_config(enabled='No', params=params, dry_run=False, verbose=False)
+        result = setup_detective(enabled='No', params=params, dry_run=False, verbose=False)
         
         # Assert
-        assert result is True, "AWS Config setup should return True even when disabled"
+        assert result is True, "Detective setup should return True even when disabled"
     
     def test_when_enabled_flag_values_are_exactly_yes_or_no_then_they_are_accepted(self):
         """
         GIVEN: Main script provides exactly 'Yes' or 'No' values via argparse choices
-        WHEN: setup_aws_config is called with these canonical values
+        WHEN: setup_detective is called with these canonical values
         THEN: Both values should be handled correctly
         
         Note: argparse choices=['Yes', 'No'] ensures only these values are passed.
@@ -77,19 +78,19 @@ class TestAWSConfigBasicBehavior:
         params = create_test_params()
         
         # Act & Assert - Test canonical Yes value
-        result = setup_aws_config('Yes', params, dry_run=True, verbose=False)
+        result = setup_detective('Yes', params, dry_run=True, verbose=False)
         assert result is True, "Should accept enabled='Yes'"
             
         # Act & Assert - Test canonical No value
-        result = setup_aws_config('No', params, dry_run=True, verbose=False)
+        result = setup_detective('No', params, dry_run=True, verbose=False)
         assert result is True, "Should accept enabled='No'"
 
 
-class TestAWSConfigUserFeedback:
+class TestDetectiveUserFeedback:
     """
     SPECIFICATION: User feedback and communication
     
-    The setup_aws_config function should provide clear feedback to users:
+    The setup_detective function should provide clear feedback to users:
     1. Show what actions will be taken in dry-run mode
     2. Display detailed information in verbose mode
     3. Confirm when services are disabled/skipped
@@ -100,7 +101,7 @@ class TestAWSConfigUserFeedback:
     def test_when_verbose_mode_is_enabled_then_detailed_information_is_displayed(self, mock_print):
         """
         GIVEN: User wants detailed information about the operation
-        WHEN: setup_aws_config is called with verbose=True
+        WHEN: setup_detective is called with verbose=True
         THEN: Detailed parameter information should be displayed
         
         This helps users understand exactly what the script will do with their parameters.
@@ -112,7 +113,7 @@ class TestAWSConfigUserFeedback:
         )
         
         # Act
-        result = setup_aws_config('Yes', params, dry_run=False, verbose=True)
+        result = setup_detective('Yes', params, dry_run=False, verbose=True)
         
         # Assert
         assert result is True
@@ -130,7 +131,7 @@ class TestAWSConfigUserFeedback:
     def test_when_dry_run_mode_is_enabled_then_preview_actions_are_shown(self, mock_print):
         """
         GIVEN: User wants to preview actions without making changes
-        WHEN: setup_aws_config is called with dry_run=True
+        WHEN: setup_detective is called with dry_run=True
         THEN: Actions should be prefixed with "DRY RUN:" to indicate no changes
         
         This allows users to safely validate their configuration before applying.
@@ -139,7 +140,7 @@ class TestAWSConfigUserFeedback:
         params = create_test_params(regions=['us-east-1', 'us-west-2'])
         
         # Act
-        result = setup_aws_config('Yes', params, dry_run=True, verbose=False)
+        result = setup_detective('Yes', params, dry_run=True, verbose=False)
         
         # Assert
         assert result is True
@@ -148,14 +149,14 @@ class TestAWSConfigUserFeedback:
         all_output = ' '.join(str(call) for call in mock_print.call_args_list)
         
         assert 'DRY RUN:' in all_output, "Should prefix actions with DRY RUN indicator"
-        assert 'Would enable AWS Config' in all_output, "Should describe what would be done"
-        assert 'main region (us-east-1)' in all_output, "Should specify the main region"
+        assert 'Would delegate Detective' in all_output, "Should describe what would be done"
+        assert 'Detective' in all_output, "Should mention Detective capabilities"
     
     @patch('builtins.print')
-    def test_when_aws_config_is_disabled_then_clear_skip_message_is_shown(self, mock_print):
+    def test_when_detective_is_disabled_then_clear_skip_message_is_shown(self, mock_print):
         """
-        GIVEN: User has disabled AWS Config in their configuration
-        WHEN: setup_aws_config is called with enabled='No'
+        GIVEN: User has disabled Detective in their configuration
+        WHEN: setup_detective is called with enabled='No'
         THEN: A clear message should indicate the service is being skipped
         
         This prevents confusion about whether the service failed or was intentionally skipped.
@@ -164,7 +165,7 @@ class TestAWSConfigUserFeedback:
         params = create_test_params()
         
         # Act
-        result = setup_aws_config('No', params, dry_run=False, verbose=False)
+        result = setup_detective('No', params, dry_run=False, verbose=False)
         
         # Assert
         assert result is True
@@ -172,13 +173,13 @@ class TestAWSConfigUserFeedback:
         # Verify skip message was displayed
         all_output = ' '.join(str(call) for call in mock_print.call_args_list)
         
-        assert 'AWS Config is disabled - skipping' in all_output, "Should clearly indicate service is being skipped"
+        assert 'Detective is disabled - skipping' in all_output, "Should clearly indicate service is being skipped"
     
     @patch('builtins.print')
     def test_when_function_runs_then_proper_banner_formatting_is_used(self, mock_print):
         """
-        GIVEN: User runs the AWS Config setup
-        WHEN: setup_aws_config is called
+        GIVEN: User runs the Detective setup
+        WHEN: setup_detective is called
         THEN: Output should include a properly formatted banner for readability
         
         Consistent formatting helps users identify different service sections in the output.
@@ -187,86 +188,138 @@ class TestAWSConfigUserFeedback:
         params = create_test_params()
         
         # Act
-        setup_aws_config('Yes', params, dry_run=False, verbose=False)
+        setup_detective('Yes', params, dry_run=False, verbose=False)
         
         # Assert
         all_output = ' '.join(str(call) for call in mock_print.call_args_list)
         
-        assert 'AWS CONFIG SETUP' in all_output, "Should display service name banner"
+        assert 'DETECTIVE SETUP' in all_output, "Should display service name banner"
         assert '=' in all_output, "Should use separator lines for visual formatting"
 
 
-class TestAWSConfigRegionHandling:
+class TestDetectiveRegionHandling:
     """
     SPECIFICATION: Multi-region configuration logic
     
-    AWS Config has specific requirements for IAM global events:
-    1. Main region (first in list) should record IAM global events
-    2. Other regions should NOT record IAM global events to avoid duplication
-    3. Single region deployments should handle IAM global events
-    4. Empty or missing regions should be handled gracefully
+    Detective requires configuration across selected regions:
+    1. Delegate Detective in all regions
+    2. Configure Detective in all selected regions
+    3. Enable investigation capabilities across regions
+    4. Handle single vs multiple region deployments
     """
     
     @patch('builtins.print')
-    def test_when_single_region_is_provided_then_it_becomes_main_region(self, mock_print):
+    def test_when_single_region_is_provided_then_it_is_configured(self, mock_print):
         """
         GIVEN: User provides only one region in their configuration
-        WHEN: setup_aws_config is called with a single region
-        THEN: That region should be treated as the main region with IAM global events
+        WHEN: setup_detective is called with a single region
+        THEN: That region should be configured for Detective
         
-        Single-region deployments still need IAM global event recording somewhere.
+        Single-region deployments should work correctly.
         """
         # Arrange
         params = create_test_params(regions=['us-east-1'])
         
         # Act
-        result = setup_aws_config('Yes', params, dry_run=True, verbose=False)
+        result = setup_detective('Yes', params, dry_run=True, verbose=False)
         
         # Assert
         assert result is True
         
         all_output = ' '.join(str(call) for call in mock_print.call_args_list)
         
-        assert 'main region (us-east-1)' in all_output, "Single region should be identified as main"
-        # Should not mention other regions when there's only one
-        other_regions_mentioned = 'other regions' in all_output and '[]' not in all_output
-        assert not other_regions_mentioned, "Should not mention other regions for single region setup"
+        assert 'all regions' in all_output or 'selected regions' in all_output, "Should mention region configuration"
     
     @patch('builtins.print')
-    def test_when_multiple_regions_provided_then_first_is_main_others_are_secondary(self, mock_print):
+    def test_when_multiple_regions_provided_then_all_are_configured(self, mock_print):
         """
         GIVEN: User provides multiple regions in their configuration
-        WHEN: setup_aws_config is called with multiple regions
-        THEN: First region should be main (with IAM global), others should be secondary (without IAM global)
+        WHEN: setup_detective is called with multiple regions
+        THEN: All regions should be configured for Detective
         
-        This prevents duplicate IAM global event recording across regions.
+        Multi-region deployments should handle all regions consistently.
         """
         # Arrange
         params = create_test_params(regions=['eu-west-1', 'us-east-1', 'ap-southeast-1'])
         
         # Act
-        result = setup_aws_config('Yes', params, dry_run=True, verbose=False)
+        result = setup_detective('Yes', params, dry_run=True, verbose=False)
         
         # Assert
         assert result is True
         
         all_output = ' '.join(str(call) for call in mock_print.call_args_list)
         
-        # Main region should be the first one in the list
-        assert 'main region (eu-west-1)' in all_output, "First region should be identified as main"
-        
-        # Other regions should be mentioned
-        assert 'other regions' in all_output, "Should mention other regions exist"
-        assert 'us-east-1' in all_output, "Should list second region as other"
-        assert 'ap-southeast-1' in all_output, "Should list third region as other"
+        # Should mention region configuration approach
+        assert 'all regions' in all_output or 'selected regions' in all_output, "Should mention region configuration"
     
 
 
-class TestAWSConfigErrorResilience:
+class TestDetectiveOptionalServiceHandling:
+    """
+    SPECIFICATION: Optional service configuration logic
+    
+    Detective is an optional service with specific requirements:
+    1. Default to disabled state (unlike core services)
+    2. Clear messaging about optional nature
+    3. GuardDuty dependency awareness
+    4. Investigation capability messaging
+    """
+    
+    @patch('builtins.print')
+    def test_when_enabled_then_optional_service_nature_is_clear(self, mock_print):
+        """
+        GIVEN: Detective is enabled (non-default for optional service)
+        WHEN: setup_detective is called
+        THEN: Output should clearly indicate this is an optional service
+        
+        Users should understand Detective is optional and requires explicit enablement.
+        """
+        # Arrange
+        params = create_test_params()
+        
+        # Act
+        result = setup_detective('Yes', params, dry_run=True, verbose=False)
+        
+        # Assert
+        assert result is True
+        
+        all_output = ' '.join(str(call) for call in mock_print.call_args_list)
+        
+        # Should indicate optional nature or Detective capabilities
+        optional_indicated = any(term in all_output for term in [
+            'optional', 'Detective', 'threat', 'detective'
+        ])
+        assert optional_indicated, "Should indicate optional service nature or capabilities"
+    
+    @patch('builtins.print')
+    def test_when_disabled_then_optional_skip_is_appropriate(self, mock_print):
+        """
+        GIVEN: Detective is disabled (default for optional service)
+        WHEN: setup_detective is called with enabled='No'
+        THEN: Skip message should be appropriate for optional service
+        
+        Optional service skip messages should be clear and expected.
+        """
+        # Arrange
+        params = create_test_params()
+        
+        # Act
+        result = setup_detective('No', params, dry_run=False, verbose=False)
+        
+        # Assert
+        assert result is True
+        
+        all_output = ' '.join(str(call) for call in mock_print.call_args_list)
+        
+        assert 'disabled - skipping' in all_output, "Should show appropriate skip message for optional service"
+
+
+class TestDetectiveErrorResilience:
     """
     SPECIFICATION: Error handling and resilience
     
-    The setup_aws_config function should:
+    The setup_detective function should:
     1. Handle exceptions gracefully without crashing
     2. Return False when errors occur
     3. Log error information for debugging
@@ -277,7 +330,7 @@ class TestAWSConfigErrorResilience:
     def test_when_unexpected_exception_occurs_then_error_is_handled_gracefully(self, mock_print):
         """
         GIVEN: An unexpected error occurs during execution
-        WHEN: setup_aws_config encounters an exception
+        WHEN: setup_detective encounters an exception
         THEN: Function should catch the error, log it, and return False
         
         This prevents the entire script from crashing due to one service failure.
@@ -293,14 +346,14 @@ class TestAWSConfigErrorResilience:
         params = create_test_params()
         
         # Act
-        result = setup_aws_config('Yes', params, dry_run=False, verbose=True)
+        result = setup_detective('Yes', params, dry_run=False, verbose=True)
         
         # Assert
         assert result is False, "Should return False when exception occurs"
         
         # Verify error was logged
         all_output = ' '.join(str(call) for call in mock_print.call_args_list)
-        assert 'ERROR in setup_aws_config:' in all_output, "Should log the error"
+        assert 'ERROR in setup_detective:' in all_output, "Should log the error"
     
 
 

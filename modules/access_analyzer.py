@@ -32,10 +32,12 @@ def setup_access_analyzer(enabled, params, dry_run, verbose):
         
         if verbose:
             printc(GRAY, f"Enabled: {enabled}")
+            printc(GRAY, f"Regions: {params['regions']}")
+            printc(GRAY, f"Organization ID: {params['org_id']}")
             printc(GRAY, f"Dry Run: {dry_run}")
             printc(GRAY, f"Verbose: {verbose}")
         
-        if enabled.lower() == 'yes':
+        if enabled == 'Yes':
             if dry_run:
                 printc(YELLOW, "DRY RUN: Would delegate administration to Security-Adm account")
                 printc(YELLOW, "DRY RUN: Would set up organization-wide analyzer for external access (all regions)")
