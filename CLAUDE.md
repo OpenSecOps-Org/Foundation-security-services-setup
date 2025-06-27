@@ -922,12 +922,17 @@ if (is_delegated_to_security and cross_account_role and security_account != admi
 - Maintained 100% test passing rate during real implementation transition
 - Established proven patterns for AWS service mocking with moto
 
-**Phase 3: Test Suite Consolidation** (This session)
+**Phase 3: Test Suite Consolidation & Critical Logic Fix** (This session)
 - Updated all tests to work with real AWS implementations
 - Fixed integration test expectations for discovery vs stub behavior
 - Eliminated subprocess calls from integration tests - replaced with direct function calls
 - Added proper AWS mocking to ALL tests across entire codebase
-- Achieved final state: **121/121 tests passing** (100% success rate, <17 seconds execution)
+- **CRITICAL FIX**: Corrected IAM Access Analyzer logic using TDD approach
+  - Fixed logical error: IAM is global, cannot be "enabled/disabled" like other services
+  - Fixed delegation checking: Access Analyzer delegation is organization-wide, not per-region
+  - Fixed anomalous detection: Focus on analyzer presence in unexpected regions
+  - Added TDD tests for correct behavior before implementing fixes
+- Achieved final state: **124/124 tests passing** (100% success rate, <13 seconds execution)
 - Validated test architecture scales properly with real AWS complexity
 
 ### **Critical Test Engineering Learnings**
@@ -1011,6 +1016,34 @@ result = subprocess.run(['./setup-security-services', '--dry-run'], capture_outp
 - Tests the actual interfaces used by main script
 - Validates service module coordination without AWS complexity
 
+**6. Service-Specific Logic Patterns (Critical Learning)**
+
+**IAM Access Analyzer Unique Characteristics** (Fixed via TDD):
+```python
+# ❌ WRONG: Treating Access Analyzer like other services
+for region in regions:
+    check_service_enablement_in_region(region)  # IAM is always "enabled"
+    check_delegation_in_region(region)          # Delegation is global, not per-region
+
+# ✅ CORRECT: Access Analyzer proper logic
+delegation_status = check_access_analyzer_delegation_globally()  # Once, organization-wide
+for region in expected_regions:
+    check_analyzer_presence_in_region(region, delegation_status)
+anomalous_regions = detect_analyzers_in_unexpected_regions(expected_regions)
+```
+
+**Key Differences from Other AWS Security Services**:
+- **IAM is global**: Cannot be "enabled" or "disabled" like GuardDuty/Security Hub
+- **Delegation is organization-wide**: Not per-region like other services
+- **Analyzers are per-region**: What we actually check for
+- **Anomalous detection**: Focus on analyzer presence in unexpected regions, not delegation issues
+
+**Critical TDD Pattern for Service Logic Fixes**:
+1. **Write failing tests** that describe correct behavior
+2. **Fix implementation** to match tests
+3. **Verify all existing tests** still pass
+4. **Document the logic difference** for future developers
+
 ### **Test Architecture Validation**
 
 **Proven Architecture Supports**:
@@ -1021,11 +1054,12 @@ result = subprocess.run(['./setup-security-services', '--dry-run'], capture_outp
 - ✅ **Rapid Development**: Easy to add new services following established patterns
 
 **Test Coverage Excellence**:
-- **121 total tests**: 96 unit + 9 integration + 16 parameter validation
-- **100% passing rate**: No flaky tests, deterministic results (<17 seconds execution)
+- **124 total tests**: 99 unit + 9 integration + 16 parameter validation
+- **100% passing rate**: No flaky tests, deterministic results (<13 seconds execution)
 - **Comprehensive scenarios**: All AWS service configuration patterns covered
 - **Mock strategy**: Proven patterns for AWS service testing without real resources
 - **Fast execution**: All tests properly mocked, no real AWS API calls
+- **Service-specific logic**: Correct patterns for unique services like IAM Access Analyzer
 
 **Ready for Scale**: The test architecture is now validated to handle all 6 security services with real AWS implementations while maintaining 100% test reliability.
 

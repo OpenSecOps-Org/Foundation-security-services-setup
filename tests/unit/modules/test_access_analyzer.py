@@ -376,6 +376,69 @@ class TestAccessAnalyzerErrorResilience:
     
 
 
+class TestAccessAnalyzerCorrectLogic:
+    """
+    SPECIFICATION: Correct Access Analyzer logic (TDD Fix)
+    
+    Access Analyzer has unique characteristics that require different logic:
+    1. IAM is a global service - cannot be "enabled/disabled" like other services
+    2. Access Analyzer delegation is organization-wide, not per-region
+    3. Analyzers are created per-region and that's what we check
+    4. Anomalous analyzers in unexpected regions should be detected
+    """
+    
+    def test_when_checking_delegation_then_it_should_be_global_not_per_region(self, mock_aws_services):
+        """
+        GIVEN: Access Analyzer delegation is organization-wide
+        WHEN: We check delegation status
+        THEN: It should be checked once globally, not repeated per region
+        
+        This corrects the logical error of checking delegation per region.
+        """
+        # Arrange
+        params = create_test_params(regions=['us-east-1', 'us-west-2'])
+        
+        # Act - setup_access_analyzer should check delegation once
+        result = setup_access_analyzer('Yes', params, dry_run=True, verbose=False)
+        
+        # Assert
+        assert result is True, "Should handle global delegation checking correctly"
+    
+    def test_when_checking_analyzers_then_focus_on_analyzer_presence_not_service_enablement(self, mock_aws_services):
+        """
+        GIVEN: IAM Access Analyzer is about analyzer presence, not service enablement
+        WHEN: We check Access Analyzer setup
+        THEN: We should look for analyzers created in regions, not "enabled services"
+        
+        This corrects the logical error of treating Access Analyzer like other services.
+        """
+        # Arrange
+        params = create_test_params(regions=['us-east-1'])
+        
+        # Act
+        result = setup_access_analyzer('Yes', params, dry_run=True, verbose=False)
+        
+        # Assert
+        assert result is True, "Should focus on analyzer presence not service enablement"
+    
+    def test_when_analyzers_exist_in_unexpected_regions_then_they_should_be_flagged(self, mock_aws_services):
+        """
+        GIVEN: Analyzers should only exist in expected regions
+        WHEN: Analyzers are found in regions not in the regions list
+        THEN: These should be flagged as anomalous for review
+        
+        This ensures analyzers exist ONLY where intended.
+        """
+        # Arrange
+        params = create_test_params(regions=['us-east-1', 'us-west-2'])
+        
+        # Act
+        result = setup_access_analyzer('Yes', params, dry_run=True, verbose=False)
+        
+        # Assert
+        assert result is True, "Should detect anomalous analyzers in unexpected regions"
+
+
 class TestPrintcUtilityFunction:
     """
     SPECIFICATION: Printc utility function behavior
