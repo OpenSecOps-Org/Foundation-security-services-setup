@@ -171,26 +171,80 @@ def setup_access_analyzer(enabled, params, dry_run, verbose):
             
             return True
         
-        # Some changes needed
-        printc(YELLOW, "⚠️  IAM Access Analyzer needs configuration in some regions:")
+        # Show specific recommendations based on what's missing
+        printc(YELLOW, "⚠️  IAM Access Analyzer needs configuration:")
         
+        # Show delegation issues first
+        if delegation_status == 'not_delegated':
+            printc(YELLOW, f"\n📋 DELEGATION REQUIRED:")
+            printc(YELLOW, f"  • Access Analyzer is not delegated to Security account")
+            printc(YELLOW, f"  • Recommend: Delegate Access Analyzer administration to {security_account}")
+        elif delegation_status == 'delegated_wrong':
+            printc(YELLOW, f"\n📋 DELEGATION ISSUE:")
+            printc(YELLOW, f"  • Access Analyzer is delegated to wrong account")
+            printc(YELLOW, f"  • Recommend: Re-delegate to Security account {security_account}")
+        
+        # Show missing analyzer recommendations per region
+        missing_regions = []
         for region, status in analyzer_status.items():
             if status['needs_changes']:
-                for issue in status['issues']:
-                    printc(YELLOW, f"  • {region}: {issue}")
+                missing_regions.append(region)
         
+        if missing_regions:
+            printc(YELLOW, f"\n📋 MISSING ANALYZERS:")
+            for region in missing_regions:
+                status = analyzer_status[region]
+                is_main = (region == main_region)
+                
+                printc(YELLOW, f"\n  🌍 Region: {region}")
+                
+                # Main region needs both external and unused access analyzers
+                if is_main:
+                    if status['external_analyzer_count'] == 0:
+                        printc(YELLOW, f"    • Missing: External Access Analyzer (organization-wide)")
+                        printc(YELLOW, f"      Recommend: Create ORGANIZATION analyzer for external access monitoring")
+                    
+                    if status['unused_analyzer_count'] == 0:
+                        printc(YELLOW, f"    • Missing: Unused Access Analyzer (main region only)")
+                        printc(YELLOW, f"      Recommend: Create ORGANIZATION analyzer for unused access detection")
+                
+                # Other regions need external access analyzer only
+                else:
+                    if status['external_analyzer_count'] == 0:
+                        printc(YELLOW, f"    • Missing: External Access Analyzer (organization-wide)")
+                        printc(YELLOW, f"      Recommend: Create ORGANIZATION analyzer for external access monitoring")
+                    
+                    # Note about unused access (should only be in main region)
+                    if status['unused_analyzer_count'] == 0:
+                        printc(GRAY, f"    ✓ Unused Access Analyzer not needed (main region: {main_region})")
+        
+        # Show what actions would be taken
         if dry_run:
-            printc(YELLOW, "\n🔍 DRY RUN: Would make the following changes:")
-            for region, status in analyzer_status.items():
-                if status['needs_changes']:
-                    for action in status['actions']:
-                        printc(YELLOW, f"  • {region}: {action}")
+            printc(YELLOW, "\n🔍 DRY RUN: Recommended actions to fix Access Analyzer setup:")
+            
+            if delegation_status != 'delegated':
+                printc(YELLOW, f"  1. Delegate Access Analyzer administration to Security account {security_account}")
+            
+            action_count = 2 if delegation_status != 'delegated' else 1
+            for region in missing_regions:
+                status = analyzer_status[region]
+                is_main = (region == main_region)
+                
+                if status['external_analyzer_count'] == 0:
+                    printc(YELLOW, f"  {action_count}. Create External Access Analyzer in {region}")
+                    action_count += 1
+                
+                if is_main and status['unused_analyzer_count'] == 0:
+                    printc(YELLOW, f"  {action_count}. Create Unused Access Analyzer in {region} (main region)")
+                    action_count += 1
         else:
             printc(YELLOW, "\n🔧 Making Access Analyzer changes...")
             # TODO: Implement actual Access Analyzer changes
-            for region, status in analyzer_status.items():
-                if status['needs_changes']:
-                    printc(YELLOW, f"  TODO: Implement changes for {region}")
+            if delegation_status != 'delegated':
+                printc(YELLOW, f"  TODO: Delegate Access Analyzer to {security_account}")
+            
+            for region in missing_regions:
+                printc(YELLOW, f"  TODO: Create required analyzers in {region}")
         
         return True
         
