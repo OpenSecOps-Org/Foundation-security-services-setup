@@ -1,0 +1,222 @@
+{
+  "timestamp": "2025-06-27T12:47:05.924605+00:00",
+  "regions_checked": 17,
+  "inspector_delegation": {
+    "ap-south-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "eu-north-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "eu-west-3": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "eu-west-2": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "eu-west-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "ap-northeast-3": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "ap-northeast-2": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "ap-northeast-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "ca-central-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "sa-east-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "ap-southeast-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "ap-southeast-2": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "eu-central-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "us-east-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "us-east-2": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "us-west-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "us-west-2": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    }
+  },
+  "inspector_scanning_status": {
+    "ap-south-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "eu-north-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "eu-west-3": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "eu-west-2": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "eu-west-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "ap-northeast-3": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "ap-northeast-2": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "ap-northeast-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "ca-central-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "sa-east-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "ap-southeast-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "ap-southeast-2": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "eu-central-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "us-east-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "us-east-2": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "us-west-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "us-west-2": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    }
+  },
+  "inspector_members": {
+    "ap-south-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "eu-north-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "eu-west-3": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "eu-west-2": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "eu-west-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "ap-northeast-3": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "ap-northeast-2": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "ap-northeast-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "ca-central-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "sa-east-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "ap-southeast-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "ap-southeast-2": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "eu-central-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "us-east-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "us-east-2": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "us-west-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "us-west-2": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    }
+  },
+  "inspector_usage_data": {
+    "ap-south-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "eu-north-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "eu-west-3": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "eu-west-2": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "eu-west-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "ap-northeast-3": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "ap-northeast-2": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "ap-northeast-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "ca-central-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "sa-east-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "ap-southeast-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "ap-southeast-2": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "eu-central-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "us-east-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "us-east-2": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "us-west-1": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    },
+    "us-west-2": {
+      "error": "General error: 'Inspector2' object has no attribute 'get_usage_totals'"
+    }
+  },
+  "summary": {
+    "regions_with_delegation": 17,
+    "regions_with_scanning": 3,
+    "total_scan_types_enabled": 3,
+    "total_members_found": 0
+  }
+}
