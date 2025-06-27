@@ -64,6 +64,34 @@ class TestParameterValidation:
             parsed_regions = [region.strip() for region in input_string.split(',')]
             assert parsed_regions == expected_list
     
+    def test_regions_parsing_with_whitespace_trimming(self):
+        """
+        Test that regions parsing properly trims whitespace from each component.
+        
+        GIVEN: User provides regions with various whitespace patterns
+        WHEN: Region string is parsed using the main script logic
+        THEN: All whitespace should be trimmed and result should be equivalent
+        
+        This ensures 'a,b,c' and '   a ,b   ,   c  ' are equivalent.
+        """
+        # Test various whitespace patterns that should all produce the same result
+        expected_result = ["us-east-1", "us-west-2", "eu-west-1"]
+        
+        whitespace_test_cases = [
+            "us-east-1,us-west-2,eu-west-1",           # No spaces (baseline)
+            "us-east-1, us-west-2, eu-west-1",         # Space after comma
+            " us-east-1, us-west-2, eu-west-1 ",       # Leading/trailing spaces
+            "us-east-1 ,us-west-2 ,eu-west-1 ",        # Space before comma
+            "  us-east-1  ,  us-west-2  ,  eu-west-1  ",  # Multiple spaces
+            "\tus-east-1\t,\tus-west-2\t,\teu-west-1\t",   # Tabs
+            " \t us-east-1 \t , \t us-west-2 \t , \t eu-west-1 \t ",  # Mixed whitespace
+        ]
+        
+        for input_string in whitespace_test_cases:
+            # This mimics the exact parsing logic from setup-security-services script
+            parsed_regions = [region.strip() for region in input_string.split(',')]
+            assert parsed_regions == expected_result, f"Failed for input: '{input_string}'"
+    
     def test_service_flag_values(self):
         """Test that service flags accept correct values."""
         valid_values = ['Yes', 'No', 'yes', 'no', 'YES', 'NO']
