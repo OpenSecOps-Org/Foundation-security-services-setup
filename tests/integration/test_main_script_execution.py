@@ -370,6 +370,28 @@ class TestErrorHandlingIntegration:
         ], capture_output=True, text=True,
         cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
         
-        # Script should handle this gracefully or show appropriate error
-        # Return code depends on implementation choice
-        assert result.returncode in [0, 1, 2]
+        # Script should exit with error code 1 for empty regions
+        assert result.returncode == 1, f"Expected exit code 1, got {result.returncode}"
+        # Error messages go to stdout, not stderr in our implementation
+        assert "ERROR: At least one region must be specified" in result.stdout
+        assert "cannot be empty or contain only whitespace" in result.stdout
+    
+    def test_whitespace_only_regions_parameter(self):
+        """Test handling of whitespace-only regions parameter."""
+        result = subprocess.run([
+            sys.executable, './setup-security-services',
+            '--admin-account', '123456789012',
+            '--security-account', '234567890123',
+            '--regions', '   ',  # Whitespace-only regions
+            '--cross-account-role', 'AWSControlTowerExecution',
+            '--org-id', 'o-example12345',
+            '--root-ou', 'r-example12345',
+            '--dry-run'
+        ], capture_output=True, text=True,
+        cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        
+        # Script should exit with error code 1 for whitespace-only regions
+        assert result.returncode == 1, f"Expected exit code 1, got {result.returncode}"
+        # Error messages go to stdout, not stderr in our implementation
+        assert "ERROR: At least one region must be specified" in result.stdout
+        assert "cannot be empty or contain only whitespace" in result.stdout

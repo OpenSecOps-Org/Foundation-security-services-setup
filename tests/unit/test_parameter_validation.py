@@ -92,6 +92,62 @@ class TestParameterValidation:
             parsed_regions = [region.strip() for region in input_string.split(',')]
             assert parsed_regions == expected_result, f"Failed for input: '{input_string}'"
     
+    def test_regions_parsing_with_empty_region_filtering(self):
+        """
+        Test that regions parsing filters out empty regions after trimming.
+        
+        GIVEN: User provides regions with empty or whitespace-only components
+        WHEN: Region string is parsed and filtered using the main script logic
+        THEN: Empty components should be removed, leaving only valid regions
+        
+        This ensures mixed valid/invalid input like 'us-east-1, , ,us-west-2' works correctly.
+        """
+        test_cases = [
+            # (input_string, expected_after_filtering)
+            ("us-east-1,,us-west-2", ["us-east-1", "us-west-2"]),          # Empty between commas
+            ("us-east-1, ,us-west-2", ["us-east-1", "us-west-2"]),         # Spaces become empty after trim
+            (",us-east-1,us-west-2", ["us-east-1", "us-west-2"]),          # Leading empty
+            ("us-east-1,us-west-2,", ["us-east-1", "us-west-2"]),          # Trailing empty
+            ("us-east-1, , ,us-west-2", ["us-east-1", "us-west-2"]),       # Multiple empty in middle
+            (" , us-east-1 , , us-west-2 , ", ["us-east-1", "us-west-2"]), # Mixed empty and spaces
+            ("us-east-1,\t,\t\t,us-west-2", ["us-east-1", "us-west-2"]),   # Tab-only components
+        ]
+        
+        for input_string, expected_result in test_cases:
+            # This mimics the exact parsing and filtering logic from setup-security-services script
+            regions_list = [region.strip() for region in input_string.split(',')]
+            regions_list = [region for region in regions_list if region]  # Remove empty strings
+            assert regions_list == expected_result, f"Failed for input: '{input_string}'"
+    
+    def test_regions_parsing_validates_minimum_length(self):
+        """
+        Test that regions parsing validates at least one valid region exists.
+        
+        GIVEN: User provides regions that become empty after trimming and filtering
+        WHEN: Region string is parsed and validated using the main script logic
+        THEN: An empty list should be detected as invalid (would cause sys.exit(1) in main script)
+        
+        This ensures input like '', '   ', ',,,,' is properly rejected.
+        """
+        invalid_test_cases = [
+            "",           # Completely empty
+            "   ",        # Whitespace only
+            "\t\t",      # Tabs only
+            " \t \n ",   # Mixed whitespace
+            ",",          # Single comma
+            ",,",         # Multiple commas
+            ", , ,",      # Commas with spaces
+            ",\t,\t,",    # Commas with tabs
+        ]
+        
+        for input_string in invalid_test_cases:
+            # This mimics the exact parsing and filtering logic from setup-security-services script
+            regions_list = [region.strip() for region in input_string.split(',')]
+            regions_list = [region for region in regions_list if region]  # Remove empty strings
+            
+            # After filtering, the list should be empty (invalid)
+            assert not regions_list, f"Expected empty list for input: '{input_string}', got: {regions_list}"
+    
     def test_service_flag_values(self):
         """Test that service flags accept correct values."""
         valid_values = ['Yes', 'No', 'yes', 'no', 'YES', 'NO']

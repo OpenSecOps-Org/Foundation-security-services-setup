@@ -81,6 +81,14 @@ def main():
     # Parse region list from comma-separated string (required parameter)
     regions_list = [region.strip() for region in args.regions.split(',')]
     
+    # Validate that we have at least one non-empty region after trimming
+    regions_list = [region for region in regions_list if region]  # Remove empty strings
+    if not regions_list:
+        printc(RED, "❌ ERROR: At least one region must be specified")
+        printc(RED, "   The --regions parameter cannot be empty or contain only whitespace")
+        printc(RED, "   Example: --regions us-east-1,us-west-2")
+        sys.exit(1)
+    
     # Create parameters object for passing to service functions
     params = {
         'admin_account': args.admin_account,
