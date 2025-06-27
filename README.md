@@ -63,18 +63,28 @@ You can also run the setup script directly without the OpenSecOps Installer:
 
 ```console
 ./setup-security-services \
-  --aws-config Yes \
-  --guardduty Yes \
-  --security-hub Yes \
-  --access-analyzer Yes \
-  --detective No \
-  --inspector No \
   --admin-account 123456789012 \
   --security-account 234567890123 \
   --regions us-east-1,us-west-2,eu-west-1 \
   --cross-account-role AWSControlTowerExecution \
   --org-id o-example12345 \
   --root-ou r-example12345 \
+  --dry-run
+```
+
+To disable specific services or enable optional ones:
+
+```console
+./setup-security-services \
+  --admin-account 123456789012 \
+  --security-account 234567890123 \
+  --regions us-east-1,us-west-2,eu-west-1 \
+  --cross-account-role AWSControlTowerExecution \
+  --org-id o-example12345 \
+  --root-ou r-example12345 \
+  --security-hub No \
+  --detective Yes \
+  --inspector Yes \
   --dry-run
 ```
 
@@ -87,7 +97,8 @@ You can also run the setup script directly without the OpenSecOps Installer:
 - `--root-ou`: Root organizational unit ID
 
 **Optional Parameters:**
-- `--aws-config`, `--guardduty`, `--security-hub`, `--access-analyzer`, `--detective`, `--inspector`: Enable/disable services (Yes/No)
+- `--aws-config`, `--guardduty`, `--security-hub`, `--access-analyzer`: Enable/disable core services (Yes/No, default: Yes)
+- `--detective`, `--inspector`: Enable/disable optional services (Yes/No, default: No)
 - `--dry-run`: Preview changes without making modifications
 - `--verbose`: Additional debugging output
 
