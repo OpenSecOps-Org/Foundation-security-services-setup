@@ -877,6 +877,126 @@ class TestInspectorRealImplementationRequirements:
         ])
         assert deactivation_or_clean, f"Should show appropriate deactivation guidance. Got: {all_output}"
 
+    @patch('builtins.print')
+    def test_when_inspector_disabled_with_active_scanning_then_show_account_specific_details(self, mock_print, mock_aws_services):
+        """
+        GIVEN: Inspector is disabled but has active scanning in specific accounts
+        WHEN: setup_inspector is called with enabled='No'
+        THEN: Should show account-specific scanning details to help identify where to disable scanning
+        
+        This addresses the user need to understand which specific accounts have active scanning.
+        """
+        import boto3
+        
+        # Arrange
+        params = create_test_params(regions=['us-east-1', 'us-west-2'])
+        
+        # Mock response with multiple accounts having different scan types
+        def mock_batch_get_account_status(*args, **kwargs):
+            return {
+                'accounts': [
+                    {
+                        'accountId': '123456789012',
+                        'resourceState': {
+                            'ECR': {'status': 'ENABLED'},
+                            'EC2': {'status': 'ENABLED'}
+                        }
+                    },
+                    {
+                        'accountId': '234567890123',
+                        'resourceState': {
+                            'LAMBDA': {'status': 'ENABLED'}
+                        }
+                    }
+                ]
+            }
+        
+        # Mock the Inspector client method to return our test data
+        with patch('boto3.client') as mock_client_factory:
+            # Create a mock client with our test response
+            mock_client = mock_client_factory.return_value
+            mock_client.batch_get_account_status = mock_batch_get_account_status
+            mock_client.describe_regions.return_value = {'Regions': [{'RegionName': 'us-east-1'}, {'RegionName': 'us-west-2'}]}
+            
+            # Act
+            result = setup_inspector('No', params, dry_run=False, verbose=False)
+        
+        # Assert
+        assert result is True
+        all_output = ' '.join(str(call) for call in mock_print.call_args_list)
+        
+        # Should show account-specific scanning details
+        account_details = any(phrase in all_output for phrase in [
+            'Account 123456789012', 'Account 234567890123',
+            'ECR, EC2', 'LAMBDA'
+        ])
+        assert account_details, f"Should show account-specific scanning details. Got: {all_output}"
+        
+        # Should show region-specific breakdown
+        region_breakdown = any(phrase in all_output for phrase in [
+            'us-east-1', 'scan types'
+        ])
+        assert region_breakdown, f"Should show region-specific breakdown. Got: {all_output}"
+        
+        # Should indicate this makes deactivation easier
+        deactivation_guidance = any(phrase in all_output for phrase in [
+            'INSPECTOR DEACTIVATION NEEDED', 'Current active Inspector resources'
+        ])
+        assert deactivation_guidance, f"Should provide clear deactivation guidance. Got: {all_output}"
+
+    @patch('builtins.print')
+    def test_when_inspector_disabled_dry_run_then_show_account_specific_deactivation_steps(self, mock_print, mock_aws_services):
+        """
+        GIVEN: Inspector is disabled and dry-run mode is enabled
+        WHEN: setup_inspector is called with enabled='No' and dry_run=True
+        THEN: Should show account-specific deactivation steps in dry-run preview
+        """
+        import boto3
+        
+        # Arrange
+        params = create_test_params(regions=['us-east-1'])
+        
+        # Mock response with account scanning data for dry-run test
+        def mock_batch_get_account_status(*args, **kwargs):
+            return {
+                'accounts': [
+                    {
+                        'accountId': '123456789012',
+                        'resourceState': {
+                            'ECR': {'status': 'ENABLED'},
+                            'EC2': {'status': 'ENABLED'}
+                        }
+                    }
+                ]
+            }
+        
+        # Mock the Inspector client method to return our test data
+        with patch('boto3.client') as mock_client_factory:
+            # Create a mock client with our test response
+            mock_client = mock_client_factory.return_value
+            mock_client.batch_get_account_status = mock_batch_get_account_status
+            mock_client.describe_regions.return_value = {'Regions': [{'RegionName': 'us-east-1'}]}
+            
+            # Act
+            result = setup_inspector('No', params, dry_run=True, verbose=False)
+        
+        # Assert
+        assert result is True
+        all_output = ' '.join(str(call) for call in mock_print.call_args_list)
+        
+        # Should show DRY RUN preview with account details
+        dry_run_preview = any(phrase in all_output for phrase in [
+            'DRY RUN: Would deactivate Inspector'
+        ])
+        assert dry_run_preview, f"Should show dry-run preview. Got: {all_output}"
+        
+        # Should show specific account and scan type combinations
+        account_specific_actions = any(phrase in all_output for phrase in [
+            'Disable ECR, EC2 in account 123456789012',
+            'account 123456789012'
+        ])
+        assert account_specific_actions, f"Should show account-specific actions in dry-run. Got: {all_output}"
+
 
 class TestInspectorErrorResilience:
     """

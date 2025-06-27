@@ -129,12 +129,23 @@ def setup_inspector(enabled, params, dry_run, verbose):
                     scanning_status = inspector_client.batch_get_account_status()
                     
                     region_scan_types = 0
+                    account_details = []
                     for account in scanning_status.get('accounts', []):
+                        account_id = account.get('accountId')
                         resource_state = account.get('resourceState', {})
+                        enabled_scan_types = []
+                        
                         for resource_type, state_info in resource_state.items():
                             if state_info.get('status') == 'ENABLED':
                                 region_scan_types += 1
                                 total_scan_types_enabled += 1
+                                enabled_scan_types.append(resource_type)
+                        
+                        if enabled_scan_types:
+                            account_details.append({
+                                'account_id': account_id,
+                                'enabled_scan_types': enabled_scan_types
+                            })
                     
                     if region_scan_types > 0:
                         inspector_is_active = True
@@ -142,11 +153,16 @@ def setup_inspector(enabled, params, dry_run, verbose):
                         active_scanning_regions.append({
                             'region': region, 
                             'scan_types': region_scan_types,
-                            'is_configured': is_configured_region
+                            'is_configured': is_configured_region,
+                            'account_details': account_details
                         })
                         if verbose:
                             status = "configured" if is_configured_region else "UNEXPECTED"
                             printc(GRAY, f"   🔍 Active scanning in {region}: {region_scan_types} types ({status})")
+                            for account in account_details:
+                                account_id = account['account_id']
+                                enabled_types = ', '.join(account['enabled_scan_types'])
+                                printc(GRAY, f"       Account {account_id}: {enabled_types}")
                     
                     # Count members only if delegation exists (requires delegation to see members)
                     if inspector_delegation_exists:
@@ -171,13 +187,29 @@ def setup_inspector(enabled, params, dry_run, verbose):
                 printc(YELLOW, f"Current active Inspector resources:")
                 
                 if configured_regions:
-                    configured_names = [info['region'] for info in configured_regions]
-                    printc(YELLOW, f"  • {len(configured_regions)} configured region(s) with active scanning: {', '.join(configured_names)}")
+                    printc(YELLOW, f"  • {len(configured_regions)} configured region(s) with active scanning:")
+                    for region_info in configured_regions:
+                        region = region_info['region']
+                        scan_types = region_info['scan_types']
+                        accounts = region_info.get('account_details', [])
+                        printc(YELLOW, f"    📍 {region} ({scan_types} scan types):")
+                        for account in accounts:
+                            account_id = account['account_id']
+                            enabled_types = ', '.join(account['enabled_scan_types'])
+                            printc(YELLOW, f"      🔹 Account {account_id}: {enabled_types}")
                 
                 if unexpected_regions:
-                    unexpected_names = [info['region'] for info in unexpected_regions]
-                    printc(YELLOW, f"  • {len(unexpected_regions)} UNEXPECTED region(s) with active scanning: {', '.join(unexpected_names)}")
+                    printc(YELLOW, f"  • {len(unexpected_regions)} UNEXPECTED region(s) with active scanning:")
                     printc(YELLOW, f"    ⚠️  These regions are outside your configuration and generating costs!")
+                    for region_info in unexpected_regions:
+                        region = region_info['region']
+                        scan_types = region_info['scan_types']
+                        accounts = region_info.get('account_details', [])
+                        printc(YELLOW, f"    📍 {region} ({scan_types} scan types):")
+                        for account in accounts:
+                            account_id = account['account_id']
+                            enabled_types = ', '.join(account['enabled_scan_types'])
+                            printc(YELLOW, f"      🔹 Account {account_id}: {enabled_types}")
                 
                 printc(YELLOW, f"  • {total_scan_types_enabled} scan type(s) enabled (ECR/EC2/Lambda)")
                 if total_members > 0:
@@ -194,10 +226,15 @@ def setup_inspector(enabled, params, dry_run, verbose):
                         region = region_info['region']
                         scan_types = region_info['scan_types']
                         is_configured = region_info['is_configured']
+                        accounts = region_info.get('account_details', [])
                         status = "configured" if is_configured else "UNEXPECTED"
-                        printc(YELLOW, f"  • Disable {scan_types} scan type(s) in {region} ({status})")
-                        printc(YELLOW, f"  • Remove member account invitations in {region}")
-                        printc(YELLOW, f"  • Disable automatic member enrollment in {region}")
+                        printc(YELLOW, f"  📍 {region} ({scan_types} scan types, {status}):")
+                        for account in accounts:
+                            account_id = account['account_id']
+                            enabled_types = ', '.join(account['enabled_scan_types'])
+                            printc(YELLOW, f"    🔹 Disable {enabled_types} in account {account_id}")
+                        printc(YELLOW, f"    • Remove member account invitations in {region}")
+                        printc(YELLOW, f"    • Disable automatic member enrollment in {region}")
                     if inspector_delegation_exists:
                         printc(YELLOW, f"  • Remove Inspector delegation from Security account ({security_account})")
                     printc(YELLOW, f"  • This will stop all vulnerability scanning and cost generation")
