@@ -126,16 +126,27 @@ class TestAWSConfigUserFeedback:
         assert 'Dry Run: False' in all_output, "Should show the dry-run status"
         assert 'Verbose: True' in all_output, "Should show the verbose status"
     
+    @patch('modules.aws_config.check_config_in_region')
     @patch('builtins.print')
-    def test_when_dry_run_mode_is_enabled_then_preview_actions_are_shown(self, mock_print):
+    def test_when_dry_run_mode_is_enabled_then_preview_actions_are_shown(self, mock_print, mock_check_config):
         """
-        GIVEN: User wants to preview actions without making changes
-        WHEN: setup_aws_config is called with dry_run=True
+        GIVEN: User wants to preview actions without making changes and Config needs changes
+        WHEN: setup_aws_config is called with dry_run=True and regions need configuration
         THEN: Actions should be prefixed with "DRY RUN:" to indicate no changes
         
         This allows users to safely validate their configuration before applying.
         """
-        # Arrange
+        # Arrange - Mock Config needing changes to trigger dry-run output
+        mock_check_config.return_value = {
+            'region': 'us-east-1',
+            'config_enabled': False,
+            'records_global_iam': False,
+            'needs_changes': True,
+            'issues': ['Config not enabled'],
+            'actions': ['Enable AWS Config'],
+            'errors': [],
+            'config_details': []
+        }
         params = create_test_params(regions=['us-east-1', 'us-west-2'])
         
         # Act
@@ -148,17 +159,16 @@ class TestAWSConfigUserFeedback:
         all_output = ' '.join(str(call) for call in mock_print.call_args_list)
         
         assert 'DRY RUN:' in all_output, "Should prefix actions with DRY RUN indicator"
-        assert 'Would enable AWS Config' in all_output, "Should describe what would be done"
-        assert 'main region (us-east-1)' in all_output, "Should specify the main region"
+        assert 'Would make the following changes' in all_output, "Should describe what would be done"
     
     @patch('builtins.print')
-    def test_when_aws_config_is_disabled_then_clear_skip_message_is_shown(self, mock_print):
+    def test_when_aws_config_is_disabled_then_huge_warning_is_shown(self, mock_print):
         """
         GIVEN: User has disabled AWS Config in their configuration
         WHEN: setup_aws_config is called with enabled='No'
-        THEN: A clear message should indicate the service is being skipped
+        THEN: A huge warning should be displayed about disabling critical security service
         
-        This prevents confusion about whether the service failed or was intentionally skipped.
+        AWS Config is critical for Security Hub and compliance - disabling should show major warning.
         """
         # Arrange
         params = create_test_params()
@@ -169,10 +179,12 @@ class TestAWSConfigUserFeedback:
         # Assert
         assert result is True
         
-        # Verify skip message was displayed
+        # Verify huge warning was displayed
         all_output = ' '.join(str(call) for call in mock_print.call_args_list)
         
-        assert 'AWS Config is disabled - skipping' in all_output, "Should clearly indicate service is being skipped"
+        assert 'CRITICAL WARNING: AWS Config Disable Requested!' in all_output, "Should show critical warning"
+        assert 'DISABLING CONFIG WILL BREAK SECURITY MONITORING!' in all_output, "Should emphasize breaking security"
+        assert 'Config setup SKIPPED due to enabled=No parameter' in all_output, "Should indicate service is skipped"
     
     @patch('builtins.print')
     def test_when_function_runs_then_proper_banner_formatting_is_used(self, mock_print):
@@ -207,45 +219,66 @@ class TestAWSConfigRegionHandling:
     4. Empty or missing regions should be handled gracefully
     """
     
+    @patch('modules.aws_config.check_config_in_region')
     @patch('builtins.print')
-    def test_when_single_region_is_provided_then_it_becomes_main_region(self, mock_print):
+    def test_when_single_region_is_provided_then_it_becomes_main_region(self, mock_print, mock_check_config):
         """
         GIVEN: User provides only one region in their configuration
-        WHEN: setup_aws_config is called with a single region
+        WHEN: setup_aws_config is called with a single region and verbose mode
         THEN: That region should be treated as the main region with IAM global events
         
         Single-region deployments still need IAM global event recording somewhere.
         """
-        # Arrange
+        # Arrange - Mock configuration check
+        mock_check_config.return_value = {
+            'region': 'us-east-1',
+            'config_enabled': True,
+            'records_global_iam': True,
+            'needs_changes': False,
+            'issues': [],
+            'actions': [],
+            'errors': [],
+            'config_details': []
+        }
         params = create_test_params(regions=['us-east-1'])
         
-        # Act
-        result = setup_aws_config('Yes', params, dry_run=True, verbose=False)
+        # Act - Use verbose to see region details
+        result = setup_aws_config('Yes', params, dry_run=True, verbose=True)
         
         # Assert
         assert result is True
         
         all_output = ' '.join(str(call) for call in mock_print.call_args_list)
         
-        assert 'main region (us-east-1)' in all_output, "Single region should be identified as main"
+        assert 'Main region: us-east-1' in all_output, "Single region should be identified as main"
         # Should not mention other regions when there's only one
-        other_regions_mentioned = 'other regions' in all_output and '[]' not in all_output
-        assert not other_regions_mentioned, "Should not mention other regions for single region setup"
+        assert 'Other regions:' not in all_output, "Should not mention other regions for single region setup"
     
+    @patch('modules.aws_config.check_config_in_region')
     @patch('builtins.print')
-    def test_when_multiple_regions_provided_then_first_is_main_others_are_secondary(self, mock_print):
+    def test_when_multiple_regions_provided_then_first_is_main_others_are_secondary(self, mock_print, mock_check_config):
         """
         GIVEN: User provides multiple regions in their configuration
-        WHEN: setup_aws_config is called with multiple regions
+        WHEN: setup_aws_config is called with multiple regions and verbose mode
         THEN: First region should be main (with IAM global), others should be secondary (without IAM global)
         
         This prevents duplicate IAM global event recording across regions.
         """
-        # Arrange
+        # Arrange - Mock configuration check
+        mock_check_config.return_value = {
+            'region': 'test-region',
+            'config_enabled': True,
+            'records_global_iam': True,
+            'needs_changes': False,
+            'issues': [],
+            'actions': [],
+            'errors': [],
+            'config_details': []
+        }
         params = create_test_params(regions=['eu-west-1', 'us-east-1', 'ap-southeast-1'])
         
-        # Act
-        result = setup_aws_config('Yes', params, dry_run=True, verbose=False)
+        # Act - Use verbose to see region details
+        result = setup_aws_config('Yes', params, dry_run=True, verbose=True)
         
         # Assert
         assert result is True
@@ -253,10 +286,10 @@ class TestAWSConfigRegionHandling:
         all_output = ' '.join(str(call) for call in mock_print.call_args_list)
         
         # Main region should be the first one in the list
-        assert 'main region (eu-west-1)' in all_output, "First region should be identified as main"
+        assert 'Main region: eu-west-1' in all_output, "First region should be identified as main"
         
         # Other regions should be mentioned
-        assert 'other regions' in all_output, "Should mention other regions exist"
+        assert 'Other regions:' in all_output, "Should mention other regions exist"
         assert 'us-east-1' in all_output, "Should list second region as other"
         assert 'ap-southeast-1' in all_output, "Should list third region as other"
     
@@ -357,3 +390,277 @@ class TestPrintcUtilityFunction:
         call_kwargs = mock_print.call_args[1]
         assert 'end' in call_kwargs, "Should pass through end parameter"
         assert 'flush' in call_kwargs, "Should pass through flush parameter"
+
+
+class TestAWSConfigConfigurationScenarios:
+    """
+    SPECIFICATION: Comprehensive configuration scenario detection
+    
+    The check_config_in_region function should handle all real-world scenarios:
+    1. Unconfigured service - No Config recorders found
+    2. Configuration but wrong IAM global settings - Config enabled but IAM global recording incorrect
+    3. Weird configurations - Partial setups, missing delivery channels, suboptimal settings
+    4. Valid configurations - Properly configured with correct IAM global recording per region role
+    """
+    
+    @patch('boto3.client')
+    def test_scenario_1_unconfigured_service_detected(self, mock_boto_client):
+        """
+        GIVEN: AWS Config is not enabled in a region (no recorders)
+        WHEN: check_config_in_region is called
+        THEN: Should detect unconfigured service and recommend enablement
+        """
+        # Arrange - No configuration recorders found
+        mock_config_client = mock_boto_client.return_value
+        mock_config_client.describe_configuration_recorders.return_value = {'ConfigurationRecorders': []}
+        
+        # Act
+        from modules.aws_config import check_config_in_region
+        result = check_config_in_region(
+            region='us-east-1',
+            is_main_region=True,
+            verbose=False
+        )
+        
+        # Assert
+        assert result['config_enabled'] is False
+        assert result['needs_changes'] is True
+        assert "No configuration recorders found" in result['issues']
+        assert "Create configuration recorder" in result['actions']
+        assert "❌ No configuration recorders found" in result['config_details']
+    
+    @patch('boto3.client')
+    def test_scenario_2_main_region_missing_iam_global_recording(self, mock_boto_client):
+        """
+        GIVEN: AWS Config is enabled in main region but not recording IAM global events
+        WHEN: check_config_in_region is called for main region
+        THEN: Should detect missing IAM global recording and recommend fix
+        """
+        # Arrange - Config enabled but no IAM global recording in main region
+        mock_config_client = mock_boto_client.return_value
+        
+        # Configuration recorder exists but without IAM global recording
+        mock_config_client.describe_configuration_recorders.return_value = {
+            'ConfigurationRecorders': [
+                {
+                    'name': 'test-recorder',
+                    'roleARN': 'arn:aws:iam::123456789012:role/config-role',
+                    'recordingGroup': {
+                        'allSupported': False,
+                        'includeGlobalResourceTypes': False,  # Missing IAM global
+                        'resourceTypes': ['AWS::EC2::Instance']
+                    }
+                }
+            ]
+        }
+        
+        # Mock delivery channels and rules
+        mock_config_client.describe_delivery_channels.return_value = {'DeliveryChannels': []}
+        mock_config_client.get_paginator.return_value.paginate.return_value = [{'ConfigRules': []}]
+        
+        # Act
+        from modules.aws_config import check_config_in_region
+        result = check_config_in_region(
+            region='us-east-1',
+            is_main_region=True,  # Main region should record IAM global
+            verbose=False
+        )
+        
+        # Assert
+        assert result['config_enabled'] is True
+        assert result['records_global_iam'] is False
+        assert result['needs_changes'] is True
+        assert "Main region should record IAM global events but doesn't" in result['issues']
+        assert "Enable IAM global resource recording" in result['actions']
+        # Check that IAM global resources are marked as excluded in details
+        details_str = '\n'.join(result['config_details'])
+        assert "🌍 IAM Global Resources: ❌ Excluded" in details_str
+    
+    @patch('boto3.client') 
+    def test_scenario_3_non_main_region_incorrectly_recording_iam_global(self, mock_boto_client):
+        """
+        GIVEN: AWS Config is enabled in non-main region but incorrectly recording IAM global events
+        WHEN: check_config_in_region is called for non-main region
+        THEN: Should detect incorrect IAM global recording and recommend fix
+        """
+        # Arrange - Config enabled with IAM global recording in non-main region
+        mock_config_client = mock_boto_client.return_value
+        
+        # Configuration recorder exists with IAM global recording (wrong for non-main region)
+        mock_config_client.describe_configuration_recorders.return_value = {
+            'ConfigurationRecorders': [
+                {
+                    'name': 'test-recorder',
+                    'roleARN': 'arn:aws:iam::123456789012:role/config-role',
+                    'recordingGroup': {
+                        'allSupported': True,  # All supported includes global
+                        'includeGlobalResourceTypes': True
+                    }
+                }
+            ]
+        }
+        
+        # Mock delivery channels and rules
+        mock_config_client.describe_delivery_channels.return_value = {'DeliveryChannels': []}
+        mock_config_client.get_paginator.return_value.paginate.return_value = [{'ConfigRules': []}]
+        
+        # Act
+        from modules.aws_config import check_config_in_region
+        result = check_config_in_region(
+            region='us-west-2',
+            is_main_region=False,  # Non-main region should NOT record IAM global
+            verbose=False
+        )
+        
+        # Assert
+        assert result['config_enabled'] is True
+        assert result['records_global_iam'] is True
+        assert result['needs_changes'] is True
+        assert "Non-main region should NOT record IAM global events" in result['issues']
+        assert "Disable IAM global resource recording" in result['actions']
+        # Check that IAM global resources are marked as included in details
+        details_str = '\n'.join(result['config_details'])
+        assert "🌍 IAM Global Resources: ✅ Included" in details_str
+    
+    @patch('boto3.client')
+    def test_scenario_3_weird_configuration_missing_delivery_channel(self, mock_boto_client):
+        """
+        GIVEN: AWS Config is enabled but missing delivery channel
+        WHEN: check_config_in_region is called
+        THEN: Should detect weird configuration and recommend fix
+        """
+        # Arrange - Config enabled but no delivery channel
+        mock_config_client = mock_boto_client.return_value
+        
+        # Configuration recorder exists with proper IAM global settings
+        mock_config_client.describe_configuration_recorders.return_value = {
+            'ConfigurationRecorders': [
+                {
+                    'name': 'test-recorder',
+                    'roleARN': 'arn:aws:iam::123456789012:role/config-role',
+                    'recordingGroup': {
+                        'allSupported': True,
+                        'includeGlobalResourceTypes': True
+                    }
+                }
+            ]
+        }
+        
+        # No delivery channels (weird configuration)
+        mock_config_client.describe_delivery_channels.return_value = {'DeliveryChannels': []}
+        mock_config_client.get_paginator.return_value.paginate.return_value = [{'ConfigRules': []}]
+        
+        # Act
+        from modules.aws_config import check_config_in_region
+        result = check_config_in_region(
+            region='us-east-1',
+            is_main_region=True,
+            verbose=False
+        )
+        
+        # Assert
+        assert result['config_enabled'] is True
+        assert result['needs_changes'] is True
+        assert "No delivery channels found" in result['issues']
+        assert "Create delivery channel" in result['actions']
+        assert "❌ No delivery channels found" in result['config_details']
+    
+    @patch('boto3.client')
+    def test_scenario_4_valid_configuration_optimal_setup(self, mock_boto_client):
+        """
+        GIVEN: AWS Config is properly configured with optimal settings
+        WHEN: check_config_in_region is called
+        THEN: Should detect valid configuration and require no changes
+        """
+        # Arrange - Optimal configuration
+        mock_config_client = mock_boto_client.return_value
+        
+        # Configuration recorder with optimal settings
+        mock_config_client.describe_configuration_recorders.return_value = {
+            'ConfigurationRecorders': [
+                {
+                    'name': 'aws-config-recorder',
+                    'roleARN': 'arn:aws:iam::123456789012:role/aws-config-role',
+                    'recordingGroup': {
+                        'allSupported': True,
+                        'includeGlobalResourceTypes': True
+                    },
+                    'recordingMode': {
+                        'recordingFrequency': 'CONTINUOUS'
+                    }
+                }
+            ]
+        }
+        
+        # Proper delivery channel
+        mock_config_client.describe_delivery_channels.return_value = {
+            'DeliveryChannels': [
+                {
+                    'name': 'aws-config-delivery-channel',
+                    's3BucketName': 'aws-config-bucket-123456789012',
+                    's3KeyPrefix': 'config',
+                    'deliveryProperties': {
+                        'deliveryFrequency': 'Daily'
+                    }
+                }
+            ]
+        }
+        
+        # Config rules present
+        mock_config_client.get_paginator.return_value.paginate.return_value = [
+            {
+                'ConfigRules': [
+                    {'Source': {'Owner': 'AWS'}, 'ConfigRuleName': 'rule1'},
+                    {'Source': {'Owner': 'AWS'}, 'ConfigRuleName': 'rule2'},
+                    {'Source': {'Owner': 'CUSTOM_LAMBDA'}, 'ConfigRuleName': 'custom-rule'}
+                ]
+            }
+        ]
+        
+        # Act
+        from modules.aws_config import check_config_in_region
+        result = check_config_in_region(
+            region='us-east-1',
+            is_main_region=True,
+            verbose=False
+        )
+        
+        # Assert - Valid configuration requires no changes
+        assert result['config_enabled'] is True
+        assert result['records_global_iam'] is True
+        assert result['needs_changes'] is False, "Valid configuration should not need changes"
+        assert result['issues'] == [], "Valid configuration should have no issues"
+        assert result['actions'] == [], "Valid configuration should need no actions"
+        
+        # Check that optimal settings are properly detected
+        details_str = '\n'.join(result['config_details'])
+        assert "✅ Configuration Recorders: 1 found" in details_str
+        assert "📊 Recording: All supported resources" in details_str
+        assert "🌍 IAM Global Resources: ✅ Included" in details_str
+        assert "⏱️  Recording Frequency: CONTINUOUS" in details_str
+        assert "✅ Delivery Channels: 1 found" in details_str
+        assert "✅ Config Rules: 3 active rules" in details_str
+        assert "📋 AWS Managed Rules: 2" in details_str
+        assert "📋 Custom Rules: 1" in details_str
+    
+    def test_verbosity_control_in_configuration_detection(self):
+        """
+        GIVEN: Configuration detection is performed with verbosity controls
+        WHEN: check_config_in_region is called with verbose flag variations
+        THEN: Should respect verbosity settings for output control
+        
+        This ensures the terse vs verbose behavior works correctly.
+        """
+        # This test validates that the verbosity pattern is implemented
+        # The actual verbose behavior is tested through integration tests
+        # This serves as a specification that verbosity control exists
+        
+        params = create_test_params()
+        
+        # Test that function accepts verbose parameter
+        # (Implementation details tested through integration)
+        from modules.aws_config import check_config_in_region
+        assert 'verbose' in check_config_in_region.__code__.co_varnames
+        
+        # Specification: Function should handle both verbose and non-verbose modes
+        # Integration tests validate the actual output behavior

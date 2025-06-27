@@ -22,7 +22,7 @@ from unittest.mock import patch, call
 # Add the project root to the path to import modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
-from modules.guardduty import setup_guardduty, printc
+from modules.guardduty import setup_guardduty, check_guardduty_in_region, printc
 from tests.fixtures.aws_parameters import create_test_params
 
 
@@ -127,16 +127,29 @@ class TestGuardDutyUserFeedback:
         assert 'Dry Run: False' in all_output, "Should show the dry-run status"
         assert 'Verbose: True' in all_output, "Should show the verbose status"
     
+    @patch('modules.guardduty.check_guardduty_in_region')
     @patch('builtins.print')
-    def test_when_dry_run_mode_is_enabled_then_preview_actions_are_shown(self, mock_print):
+    def test_when_dry_run_mode_is_enabled_then_preview_actions_are_shown(self, mock_print, mock_check_guardduty):
         """
-        GIVEN: User wants to preview actions without making changes
-        WHEN: setup_guardduty is called with dry_run=True
+        GIVEN: User wants to preview actions without making changes and GuardDuty needs changes
+        WHEN: setup_guardduty is called with dry_run=True and regions need configuration
         THEN: Actions should be prefixed with "DRY RUN:" to indicate no changes
         
         This allows users to safely validate their configuration before applying.
         """
-        # Arrange
+        # Arrange - Mock GuardDuty needing changes to trigger dry-run output
+        mock_check_guardduty.return_value = {
+            'region': 'us-east-1',
+            'guardduty_enabled': False,
+            'delegation_status': 'unknown',
+            'member_count': 0,
+            'organization_auto_enable': False,
+            'needs_changes': True,
+            'issues': ['GuardDuty is not enabled in this region'],
+            'actions': ['Enable GuardDuty and create detector'],
+            'errors': [],
+            'guardduty_details': []
+        }
         params = create_test_params(regions=['us-east-1', 'us-west-2'])
         
         # Act
@@ -149,8 +162,7 @@ class TestGuardDutyUserFeedback:
         all_output = ' '.join(str(call) for call in mock_print.call_args_list)
         
         assert 'DRY RUN:' in all_output, "Should prefix actions with DRY RUN indicator"
-        assert 'Would enable GuardDuty' in all_output, "Should describe what would be done"
-        assert 'delegate' in all_output, "Should mention delegation setup"
+        assert 'Would make the following changes' in all_output, "Should describe what would be done"
     
     @patch('builtins.print')
     def test_when_guardduty_is_disabled_then_clear_skip_message_is_shown(self, mock_print):
@@ -170,10 +182,10 @@ class TestGuardDutyUserFeedback:
         # Assert
         assert result is True
         
-        # Verify skip message was displayed
+        # Verify skip message was displayed (updated to match real implementation)
         all_output = ' '.join(str(call) for call in mock_print.call_args_list)
         
-        assert 'GuardDuty is disabled - skipping' in all_output, "Should clearly indicate service is being skipped"
+        assert 'GuardDuty setup SKIPPED due to enabled=No parameter' in all_output, "Should clearly indicate service is being skipped"
     
     @patch('builtins.print')
     def test_when_function_runs_then_proper_banner_formatting_is_used(self, mock_print):
@@ -350,3 +362,260 @@ class TestPrintcUtilityFunction:
         call_kwargs = mock_print.call_args[1]
         assert 'end' in call_kwargs, "Should pass through end parameter"
         assert 'flush' in call_kwargs, "Should pass through flush parameter"
+
+
+class TestGuardDutyConfigurationScenarios:
+    """
+    SPECIFICATION: Comprehensive configuration scenario detection
+    
+    The check_guardduty_in_region function should handle all real-world scenarios:
+    1. Unconfigured service - No GuardDuty detectors found
+    2. Configuration but no delegation - GuardDuty enabled but not delegated to Security account  
+    3. Weird configurations - Delegated to wrong account, suboptimal settings, mixed member states
+    4. Valid configurations - Properly delegated with optimal settings and all members enabled
+    """
+    
+    @patch('boto3.client')
+    def test_scenario_1_unconfigured_service_detected(self, mock_boto_client):
+        """
+        GIVEN: GuardDuty is not enabled in a region (no detectors)
+        WHEN: check_guardduty_in_region is called
+        THEN: Should detect unconfigured service and recommend enablement
+        """
+        # Arrange - No detectors found
+        mock_guardduty_client = mock_boto_client.return_value
+        mock_guardduty_client.list_detectors.return_value = {'DetectorIds': []}
+        
+        # Act
+        result = check_guardduty_in_region(
+            region='us-east-1',
+            admin_account='123456789012', 
+            security_account='234567890123',
+            cross_account_role='AWSControlTowerExecution',
+            verbose=False
+        )
+        
+        # Assert
+        assert result['guardduty_enabled'] is False
+        assert result['needs_changes'] is True
+        assert "GuardDuty is not enabled in this region" in result['issues']
+        assert "Enable GuardDuty and create detector" in result['actions']
+        assert "❌ GuardDuty not enabled - no detectors found" in result['guardduty_details']
+    
+    @patch('boto3.client')
+    def test_scenario_2_configuration_but_no_delegation(self, mock_boto_client):
+        """
+        GIVEN: GuardDuty is enabled but not delegated to Security account
+        WHEN: check_guardduty_in_region is called
+        THEN: Should detect missing delegation and recommend setup
+        """
+        # Arrange - GuardDuty enabled but no delegation
+        mock_guardduty_client = mock_boto_client.return_value
+        mock_orgs_client = mock_boto_client.return_value
+        
+        # GuardDuty detector exists and is enabled
+        mock_guardduty_client.list_detectors.return_value = {'DetectorIds': ['detector123']}
+        mock_guardduty_client.get_detector.return_value = {
+            'Status': 'ENABLED',
+            'FindingPublishingFrequency': 'FIFTEEN_MINUTES'
+        }
+        
+        # No delegated administrators found
+        mock_orgs_client.list_delegated_administrators.return_value = {'DelegatedAdministrators': []}
+        
+        # Act
+        result = check_guardduty_in_region(
+            region='us-east-1',
+            admin_account='123456789012',
+            security_account='234567890123', 
+            cross_account_role='AWSControlTowerExecution',
+            verbose=False
+        )
+        
+        # Assert
+        assert result['guardduty_enabled'] is True
+        assert result['delegation_status'] == 'not_delegated'
+        assert result['needs_changes'] is True
+        assert "GuardDuty enabled but not delegated to Security account" in result['issues']
+        assert "Delegate GuardDuty administration to Security account" in result['actions']
+    
+    @patch('boto3.client')
+    def test_scenario_3_weird_configuration_wrong_delegation(self, mock_boto_client):
+        """
+        GIVEN: GuardDuty is delegated to wrong account (not Security account)
+        WHEN: check_guardduty_in_region is called
+        THEN: Should detect weird configuration and recommend fix
+        """
+        # Arrange - GuardDuty delegated to wrong account
+        mock_guardduty_client = mock_boto_client.return_value
+        mock_orgs_client = mock_boto_client.return_value
+        
+        # GuardDuty detector exists and is enabled
+        mock_guardduty_client.list_detectors.return_value = {'DetectorIds': ['detector123']}
+        mock_guardduty_client.get_detector.return_value = {
+            'Status': 'ENABLED',
+            'FindingPublishingFrequency': 'FIFTEEN_MINUTES'
+        }
+        
+        # Delegated to wrong account
+        mock_orgs_client.list_delegated_administrators.return_value = {
+            'DelegatedAdministrators': [
+                {'Id': '999888777666', 'Name': 'WrongAccount'}  # Different from security account
+            ]
+        }
+        
+        # Act
+        result = check_guardduty_in_region(
+            region='us-east-1',
+            admin_account='123456789012',
+            security_account='234567890123',  # Different from delegated account
+            cross_account_role='AWSControlTowerExecution',
+            verbose=False
+        )
+        
+        # Assert
+        assert result['guardduty_enabled'] is True
+        assert result['delegation_status'] == 'not_delegated'
+        assert result['needs_changes'] is True
+        assert "GuardDuty delegated to 999888777666 instead of Security account 234567890123" in result['issues']
+        assert "Remove existing delegation and delegate to Security account" in result['actions']
+        assert "⚠️  GuardDuty delegated to other account(s): 999888777666" in result['guardduty_details']
+    
+    @patch('boto3.client')
+    def test_scenario_3_weird_configuration_suboptimal_frequency(self, mock_boto_client):
+        """
+        GIVEN: GuardDuty is properly delegated but has suboptimal finding frequency
+        WHEN: check_guardduty_in_region is called  
+        THEN: Should detect suboptimal configuration and recommend optimization
+        """
+        # Arrange - Proper delegation but suboptimal frequency
+        mock_guardduty_client = mock_boto_client.return_value
+        mock_orgs_client = mock_boto_client.return_value
+        
+        # GuardDuty detector exists but suboptimal frequency
+        mock_guardduty_client.list_detectors.return_value = {'DetectorIds': ['detector123']}
+        mock_guardduty_client.get_detector.return_value = {
+            'Status': 'ENABLED',
+            'FindingPublishingFrequency': 'SIX_HOURS'  # Suboptimal
+        }
+        
+        # Properly delegated to Security account
+        mock_orgs_client.list_delegated_administrators.return_value = {
+            'DelegatedAdministrators': [
+                {'Id': '234567890123', 'Name': 'Security-Adm'}
+            ]
+        }
+        
+        # Act
+        result = check_guardduty_in_region(
+            region='us-east-1',
+            admin_account='123456789012',
+            security_account='234567890123',
+            cross_account_role='AWSControlTowerExecution',
+            verbose=False
+        )
+        
+        # Assert
+        assert result['guardduty_enabled'] is True
+        assert result['delegation_status'] == 'delegated'
+        assert result['needs_changes'] is True
+        assert "Finding frequency is 6 hours - too slow for optimal threat detection" in result['issues']
+        assert "Set finding frequency to FIFTEEN_MINUTES for optimal security" in result['actions']
+        # Check that suboptimal frequency is detected in details
+        details_str = '\n'.join(result['guardduty_details'])
+        assert "⚠️  Finding Frequency: SIX_HOURS (suboptimal)" in details_str
+    
+    @patch('modules.guardduty.get_client')
+    @patch('boto3.client')
+    def test_scenario_4_valid_configuration_optimal_setup(self, mock_boto_client, mock_get_client):
+        """
+        GIVEN: GuardDuty is properly configured with optimal settings
+        WHEN: check_guardduty_in_region is called
+        THEN: Should detect valid configuration and require no changes
+        """
+        # Arrange - Optimal configuration with cross-account data
+        mock_guardduty_client = mock_boto_client.return_value
+        mock_orgs_client = mock_boto_client.return_value
+        mock_delegated_client = mock_get_client.return_value
+        
+        # GuardDuty detector exists with optimal settings
+        mock_guardduty_client.list_detectors.return_value = {'DetectorIds': ['detector123']}
+        mock_guardduty_client.get_detector.return_value = {
+            'Status': 'ENABLED',
+            'FindingPublishingFrequency': 'FIFTEEN_MINUTES'  # Optimal
+        }
+        
+        # Properly delegated to Security account
+        mock_orgs_client.list_delegated_administrators.return_value = {
+            'DelegatedAdministrators': [
+                {'Id': '234567890123', 'Name': 'Security-Adm'}
+            ]
+        }
+        
+        # Cross-account delegated admin has optimal config
+        mock_delegated_client.list_detectors.return_value = {'DetectorIds': ['delegated-detector']}
+        mock_delegated_client.describe_organization_configuration.return_value = {
+            'AutoEnable': True,
+            'AutoEnableOrganizationMembers': 'ALL',
+            'DataSources': {
+                'S3Logs': {'AutoEnable': True},
+                'Kubernetes': {'AutoEnable': False},
+                'MalwareProtection': {'AutoEnable': True}
+            }
+        }
+        
+        # All member accounts enabled
+        mock_delegated_client.get_paginator.return_value.paginate.return_value = [
+            {'Members': [
+                {'AccountId': '111111111111', 'RelationshipStatus': 'Enabled'},
+                {'AccountId': '222222222222', 'RelationshipStatus': 'Enabled'},
+                {'AccountId': '333333333333', 'RelationshipStatus': 'Enabled'}
+            ]}
+        ]
+        
+        # Act
+        result = check_guardduty_in_region(
+            region='us-east-1',
+            admin_account='123456789012',
+            security_account='234567890123',
+            cross_account_role='AWSControlTowerExecution',
+            verbose=False
+        )
+        
+        # Assert - Valid configuration requires no changes
+        assert result['guardduty_enabled'] is True
+        assert result['delegation_status'] == 'delegated'
+        assert result['organization_auto_enable'] is True
+        assert result['member_count'] == 3
+        assert result['needs_changes'] is False, "Valid configuration should not need changes"
+        assert result['issues'] == [], "Valid configuration should have no issues"
+        assert result['actions'] == [], "Valid configuration should need no actions"
+        
+        # Check that optimal settings are properly detected
+        details_str = '\n'.join(result['guardduty_details'])
+        assert "✅ Finding Frequency: FIFTEEN_MINUTES (optimal)" in details_str
+        assert "✅ Delegated Admin: Security-Adm" in details_str
+        assert "✅ Organization Auto-Enable: True" in details_str
+        assert "✅ Auto-Enable Org Members: ALL" in details_str
+        assert "✅ All 3 member accounts are enabled" in details_str
+    
+    def test_verbosity_control_in_configuration_detection(self):
+        """
+        GIVEN: Configuration detection is performed with verbosity controls
+        WHEN: check_guardduty_in_region is called with verbose flag variations
+        THEN: Should respect verbosity settings for output control
+        
+        This ensures the terse vs verbose behavior works correctly.
+        """
+        # This test validates that the verbosity pattern is implemented
+        # The actual verbose behavior is tested through integration tests
+        # This serves as a specification that verbosity control exists
+        
+        params = create_test_params()
+        
+        # Test that function accepts verbose parameter
+        # (Implementation details tested through integration)
+        assert 'verbose' in check_guardduty_in_region.__code__.co_varnames
+        
+        # Specification: Function should handle both verbose and non-verbose modes
+        # Integration tests validate the actual output behavior

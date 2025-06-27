@@ -161,6 +161,119 @@ To disable specific services or enable optional ones:
 - `--dry-run`: Preview changes without making modifications
 - `--verbose`: Additional debugging output
 
+## Output & Information Presentation
+
+The utility provides different levels of information based on the configuration state and verbosity settings:
+
+### ✅ When Services Meet Standards
+
+When services are already properly configured according to OpenSecOps security standards:
+
+```
+✅ GuardDuty is already properly configured in all regions!
+   No changes needed - existing setup meets stringent security standards.
+```
+
+**What you see:**
+- Clear confirmation that services are configured correctly
+- Simple success message indicating no action required
+- Services meet the stringent security standards expected
+
+### ⚠️ When Services Need Configuration
+
+When services require configuration changes or initial setup:
+
+```
+⚠️  GuardDuty needs configuration in some regions:
+  • us-east-1: GuardDuty is not enabled in this region
+  • us-west-2: Finding frequency is 6 hours - too slow for optimal threat detection
+  • eu-west-1: GuardDuty delegated to 999888777666 instead of Security account 234567890123
+
+🔧 Making GuardDuty changes...
+  • us-east-1: Enable GuardDuty and create detector
+  • us-west-2: Set finding frequency to FIFTEEN_MINUTES for optimal security
+  • eu-west-1: Remove existing delegation and delegate to Security account
+```
+
+**What you see:**
+- Clear identification of issues requiring attention
+- Specific details about what's wrong in each region
+- List of actions that will be taken to resolve issues
+- Progress indicators during configuration changes
+
+### 📊 Verbose Mode (--verbose)
+
+When using `--verbose` flag, you get comprehensive details about current configurations:
+
+```
+🔍 Checking GuardDuty in region us-east-1...
+✅ GuardDuty properly configured in us-east-1
+
+📋 Current GuardDuty Configuration:
+
+🌍 Region: us-east-1
+✅ GuardDuty Detector: abcd1234efgh5678
+   ✅ Status: ENABLED
+   ✅ Finding Frequency: FIFTEEN_MINUTES (optimal)
+✅ Delegated Admin: Security-Administration-Account
+✅ Organization Auto-Enable: True
+✅ Auto-Enable Org Members: ALL
+✅ Member Accounts: 12 found
+   ✅ All 12 member accounts are enabled
+   📊 S3 Data Events: True
+   📊 Kubernetes Audit Logs: False  
+   📊 Malware Protection: True
+```
+
+**What you see:**
+- Detailed discovery process for each region
+- Complete configuration breakdown with specific values
+- Health indicators for all settings and members
+- Recommendations for optional features not enabled
+
+### 🔍 Dry-Run Mode (--dry-run)
+
+When using `--dry-run`, see exactly what would be changed without making modifications:
+
+```
+🔍 DRY RUN: Would make the following changes:
+  • us-east-1: Enable GuardDuty and create detector
+  • us-west-2: Set finding frequency to FIFTEEN_MINUTES for optimal security
+  • us-west-2: Enable organization auto-enable
+  • eu-west-1: Delegate GuardDuty administration to Security account
+```
+
+**What you see:**
+- Preview of all changes that would be made
+- No actual modifications to your AWS environment
+- Ability to validate changes before applying them
+
+### 🚨 Service Disable Warnings
+
+When attempting to disable critical security services:
+
+```
+🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨
+🚨 CRITICAL WARNING: AWS Config Disable Requested! 🚨
+🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨
+
+AWS Config is a CRITICAL security service that:
+• Provides configuration compliance monitoring
+• Enables Security Hub controls and findings
+• Records resource configuration changes
+• Required for many security compliance frameworks
+
+⛔ DISABLING CONFIG WILL BREAK SECURITY MONITORING!
+⛔ This action is STRONGLY DISCOURAGED!
+
+Config setup SKIPPED due to enabled=No parameter.
+```
+
+**What you see:**
+- Prominent warnings about the security implications
+- Clear explanation of what functionality will be lost
+- Service is skipped as requested, but with full awareness of consequences
+
 ## Key Features
 
 * **Non-destructive operation** - Never overwrites existing configurations, backs off safely when services are already configured
