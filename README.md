@@ -75,12 +75,8 @@ All services are properly delegated from the organization management account to 
 
 ## Prerequisites
 
-### For All Usage (OpenSecOps and Standalone)
 * AWS CLI configured with SystemAdministrator access to the organization management account
 * Active AWS SSO login session
-
-### For OpenSecOps Installer Usage Only
-* Accounts defined in `Installer/apps/accounts.toml`
 
 ## Configuration (OpenSecOps Installer Only)
 
