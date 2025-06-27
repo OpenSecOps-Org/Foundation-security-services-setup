@@ -143,7 +143,6 @@ def main():
     
     for service_name, setup_func, enabled in services:
         try:
-            printc(YELLOW, f"\n🔧 Processing {service_name}...")
             success = setup_func(enabled, params, args.dry_run, args.verbose)
             if success:
                 results[service_name] = "SUCCESS"
