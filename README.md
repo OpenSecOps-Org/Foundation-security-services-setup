@@ -94,7 +94,12 @@ DetectiveEnabled = 'No'
 InspectorEnabled = 'No'
 ```
 
-**Getting Started**: Example configuration for this component can be found in `Installer/apps.example/foundation/parameters.toml`. Copy this to `Installer/apps/foundation/parameters.toml` and customize the service enable/disable settings as needed.
+**Getting Started**: Example configuration for this component can be found in `Installer/apps.example/foundation/parameters.toml`. 
+
+- **New installation**: Copy the entire file to `Installer/apps/foundation/parameters.toml`
+- **Existing installation**: Look for the `[Foundation-security-services-setup]` section in the example file and copy just that section to your existing `Installer/apps/foundation/parameters.toml`
+
+Customize the service enable/disable settings as needed.
 
 **Note**: This configuration method only applies when using the OpenSecOps Installer. For standalone usage, all parameters are passed via command-line arguments as shown in the usage examples below.
 
