@@ -19,9 +19,9 @@ def test_any_aws_function(self, mock_aws_services):
 ### ABSOLUTE RULE #2: NO REAL DATA IN TESTS  
 **VIOLATION = SECURITY ISSUE**
 
-- ❌ **NEVER**: Real account numbers (515966493378, 650251698273)
-- ❌ **NEVER**: Real org IDs (o-d09svdge39) or OUs (r-jyql)
-- ✅ **ALWAYS**: Example data (123456789012, o-example12345)
+- ❌ **NEVER**: Real account numbers (use example: 111111111111, 222222222222)
+- ❌ **NEVER**: Real org IDs (use example: o-example12345) or OUs (use example: r-example12345)
+- ✅ **ALWAYS**: Example data (111111111111, 222222222222, o-example12345)
 
 ### WHERE REAL AWS CALLS ARE PERMITTED:
 1. **Discovery scripts only**: `test_real_aws_*.py` files (for understanding real AWS state)
