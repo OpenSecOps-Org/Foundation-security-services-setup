@@ -37,7 +37,7 @@ class TestSecurityHubBasicBehavior:
     3. Handle case-insensitive input gracefully
     """
     
-    def test_when_security_hub_is_enabled_then_function_returns_success(self):
+    def test_when_security_hub_is_enabled_then_function_returns_success(self, mock_aws_services):
         """
         GIVEN: Security Hub is requested to be enabled
         WHEN: setup_security_hub is called with enabled='Yes'
@@ -52,7 +52,7 @@ class TestSecurityHubBasicBehavior:
         # Assert
         assert result is True, "Security Hub setup should return True when enabled successfully"
     
-    def test_when_security_hub_is_disabled_then_function_returns_success(self):
+    def test_when_security_hub_is_disabled_then_function_returns_success(self, mock_aws_services):
         """
         GIVEN: Security Hub is requested to be disabled/skipped
         WHEN: setup_security_hub is called with enabled='No'
@@ -67,7 +67,7 @@ class TestSecurityHubBasicBehavior:
         # Assert
         assert result is True, "Security Hub setup should return True even when disabled"
     
-    def test_when_enabled_flag_values_are_exactly_yes_or_no_then_they_are_accepted(self):
+    def test_when_enabled_flag_values_are_exactly_yes_or_no_then_they_are_accepted(self, mock_aws_services):
         """
         GIVEN: Main script provides exactly 'Yes' or 'No' values via argparse choices
         WHEN: setup_security_hub is called with these canonical values
@@ -99,7 +99,7 @@ class TestSecurityHubUserFeedback:
     """
     
     @patch('builtins.print')
-    def test_when_verbose_mode_is_enabled_then_detailed_information_is_displayed(self, mock_print):
+    def test_when_verbose_mode_is_enabled_then_detailed_information_is_displayed(self, mock_print, mock_aws_services):
         """
         GIVEN: User wants detailed information about the operation
         WHEN: setup_security_hub is called with verbose=True
@@ -129,7 +129,7 @@ class TestSecurityHubUserFeedback:
         assert 'Verbose: True' in all_output, "Should show the verbose status"
     
     @patch('builtins.print')
-    def test_when_dry_run_mode_is_enabled_then_preview_actions_are_shown(self, mock_print):
+    def test_when_dry_run_mode_is_enabled_then_preview_actions_are_shown(self, mock_print, mock_aws_services):
         """
         GIVEN: User wants to preview actions without making changes
         WHEN: setup_security_hub is called with dry_run=True
@@ -154,7 +154,7 @@ class TestSecurityHubUserFeedback:
         assert 'control policies' in all_output, "Should mention control policy setup"
     
     @patch('builtins.print')
-    def test_when_security_hub_is_disabled_then_clear_skip_message_is_shown(self, mock_print):
+    def test_when_security_hub_is_disabled_then_clear_skip_message_is_shown(self, mock_print, mock_aws_services):
         """
         GIVEN: User has disabled Security Hub in their configuration
         WHEN: setup_security_hub is called with enabled='No'
@@ -177,7 +177,7 @@ class TestSecurityHubUserFeedback:
         assert 'Security Hub is disabled - skipping' in all_output, "Should clearly indicate service is being skipped"
     
     @patch('builtins.print')
-    def test_when_function_runs_then_proper_banner_formatting_is_used(self, mock_print):
+    def test_when_function_runs_then_proper_banner_formatting_is_used(self, mock_print, mock_aws_services):
         """
         GIVEN: User runs the Security Hub setup
         WHEN: setup_security_hub is called
@@ -210,7 +210,7 @@ class TestSecurityHubRegionHandling:
     """
     
     @patch('builtins.print')
-    def test_when_single_region_is_provided_then_it_is_configured(self, mock_print):
+    def test_when_single_region_is_provided_then_it_is_configured(self, mock_print, mock_aws_services):
         """
         GIVEN: User provides only one region in their configuration
         WHEN: setup_security_hub is called with a single region
@@ -232,7 +232,7 @@ class TestSecurityHubRegionHandling:
         assert 'administration' in all_output or 'configuration' in all_output, "Should mention Security Hub configuration"
     
     @patch('builtins.print')
-    def test_when_multiple_regions_provided_then_all_are_configured(self, mock_print):
+    def test_when_multiple_regions_provided_then_all_are_configured(self, mock_print, mock_aws_services):
         """
         GIVEN: User provides multiple regions in their configuration
         WHEN: setup_security_hub is called with multiple regions
@@ -268,7 +268,7 @@ class TestSecurityHubControlPolicyHandling:
     """
     
     @patch('builtins.print')
-    def test_when_enabled_then_control_policy_setup_is_mentioned(self, mock_print):
+    def test_when_enabled_then_control_policy_setup_is_mentioned(self, mock_print, mock_aws_services):
         """
         GIVEN: Security Hub is enabled
         WHEN: setup_security_hub is called
@@ -290,7 +290,7 @@ class TestSecurityHubControlPolicyHandling:
         assert 'PROD' in all_output or 'DEV' in all_output, "Should mention PROD or DEV policies"
     
     @patch('builtins.print')
-    def test_when_dry_run_then_policy_creation_is_previewed(self, mock_print):
+    def test_when_dry_run_then_policy_creation_is_previewed(self, mock_print, mock_aws_services):
         """
         GIVEN: User wants to preview Security Hub setup
         WHEN: setup_security_hub is called with dry_run=True
@@ -325,7 +325,7 @@ class TestSecurityHubErrorResilience:
     """
     
     @patch('builtins.print')
-    def test_when_unexpected_exception_occurs_then_error_is_handled_gracefully(self, mock_print):
+    def test_when_unexpected_exception_occurs_then_error_is_handled_gracefully(self, mock_print, mock_aws_services):
         """
         GIVEN: An unexpected error occurs during execution
         WHEN: setup_security_hub encounters an exception
@@ -366,7 +366,7 @@ class TestPrintcUtilityFunction:
     """
     
     @patch('builtins.print')
-    def test_when_printc_is_called_then_colored_output_is_formatted_correctly(self, mock_print):
+    def test_when_printc_is_called_then_colored_output_is_formatted_correctly(self, mock_print, mock_aws_services):
         """
         GIVEN: Need to display colored output to users
         WHEN: printc is called with color and message
@@ -388,7 +388,7 @@ class TestPrintcUtilityFunction:
         assert test_color in call_args, "Should include the color code"
     
     @patch('builtins.print')
-    def test_when_printc_called_with_kwargs_then_they_are_passed_through(self, mock_print):
+    def test_when_printc_called_with_kwargs_then_they_are_passed_through(self, mock_print, mock_aws_services):
         """
         GIVEN: Need to pass additional parameters to print function
         WHEN: printc is called with additional keyword arguments

@@ -366,12 +366,12 @@ def main():
     
     # Create params dict exactly as main script does
     params = {
-        'admin_account': '515966493378',      # From your accounts.toml
-        'security_account': '650251698273',   # From your accounts.toml  
-        'regions': ['eu-north-1', 'us-east-1'],  # From your parameters.toml
+        'admin_account': '123456789012',      # Example admin account
+        'security_account': '234567890123',   # Example security account  
+        'regions': ['eu-north-1', 'us-east-1'],  # Stockholm and West Virginia
         'cross_account_role': 'AWSControlTowerExecution',
-        'org_id': 'o-d09svdge39',
-        'root_ou': 'r-jyql'
+        'org_id': 'o-example12345',
+        'root_ou': 'r-example12345'
     }
     
     # Run discovery with same parameters that setup_guardduty will receive

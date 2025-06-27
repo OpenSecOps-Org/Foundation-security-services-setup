@@ -1,0 +1,79 @@
+{
+  "us-east-1": {
+    "region": "us-east-1",
+    "timestamp": "2025-06-27T11:47:32.798477",
+    "admin_account_view": {
+      "delegated_administrators": [
+        {
+          "Id": "650251698273",
+          "Arn": "arn:aws:organizations::515966493378:account/o-d09svdge39/650251698273",
+          "Email": "accounts+security-adm@opensecops.org",
+          "Name": "Security-Adm",
+          "Status": "ACTIVE",
+          "JoinedMethod": "CREATED",
+          "JoinedTimestamp": "2024-09-19 15:25:21.260000+02:00",
+          "DelegationEnabledDate": "2024-09-21 10:49:35.611000+02:00"
+        }
+      ],
+      "analyzers": [
+        {
+          "arn": "arn:aws:access-analyzer:us-east-1:515966493378:analyzer/ExternalAccess-ConsoleAnalyzer-10f55eb6-cc35-4d9b-9d0e-33c2d8507203",
+          "name": "ExternalAccess-ConsoleAnalyzer-10f55eb6-cc35-4d9b-9d0e-33c2d8507203",
+          "type": "ORGANIZATION",
+          "createdAt": "2024-09-21 08:44:34+00:00",
+          "lastResourceAnalyzed": "arn:aws:lambda:us-east-1:650251698273:function:StackSet-INFRA-enable-ebs-e-EbsEncryptionByDefault-7gyPjueRzxZM",
+          "lastResourceAnalyzedAt": "2025-06-27 07:36:19.617000+00:00",
+          "tags": {},
+          "status": "ACTIVE"
+        }
+      ]
+    },
+    "security_account_view": {},
+    "delegation_status": "delegated_to_other",
+    "errors": []
+  },
+  "us-west-2": {
+    "region": "us-west-2",
+    "timestamp": "2025-06-27T11:47:34.597357",
+    "admin_account_view": {
+      "delegated_administrators": [
+        {
+          "Id": "650251698273",
+          "Arn": "arn:aws:organizations::515966493378:account/o-d09svdge39/650251698273",
+          "Email": "accounts+security-adm@opensecops.org",
+          "Name": "Security-Adm",
+          "Status": "ACTIVE",
+          "JoinedMethod": "CREATED",
+          "JoinedTimestamp": "2024-09-19 15:25:21.260000+02:00",
+          "DelegationEnabledDate": "2024-09-21 10:49:35.611000+02:00"
+        }
+      ],
+      "analyzers": []
+    },
+    "security_account_view": {},
+    "delegation_status": "delegated_to_other",
+    "errors": []
+  },
+  "eu-west-1": {
+    "region": "eu-west-1",
+    "timestamp": "2025-06-27T11:47:35.825682",
+    "admin_account_view": {
+      "delegated_administrators": [
+        {
+          "Id": "650251698273",
+          "Arn": "arn:aws:organizations::515966493378:account/o-d09svdge39/650251698273",
+          "Email": "accounts+security-adm@opensecops.org",
+          "Name": "Security-Adm",
+          "Status": "ACTIVE",
+          "JoinedMethod": "CREATED",
+          "JoinedTimestamp": "2024-09-19 15:25:21.260000+02:00",
+          "DelegationEnabledDate": "2024-09-21 10:49:35.611000+02:00"
+        }
+      ],
+      "analyzers": []
+    },
+    "security_account_view": {},
+    "delegation_status": "delegated_to_other",
+    "errors": []
+  }
+}

@@ -35,7 +35,7 @@ class TestAWSConfigBasicBehavior:
     3. Handle case-insensitive input gracefully
     """
     
-    def test_when_aws_config_is_enabled_then_function_returns_success(self):
+    def test_when_aws_config_is_enabled_then_function_returns_success(self, mock_aws_services):
         """
         GIVEN: AWS Config is requested to be enabled
         WHEN: setup_aws_config is called with enabled='Yes'
@@ -50,7 +50,7 @@ class TestAWSConfigBasicBehavior:
         # Assert
         assert result is True, "AWS Config setup should return True when enabled successfully"
     
-    def test_when_aws_config_is_disabled_then_function_returns_success(self):
+    def test_when_aws_config_is_disabled_then_function_returns_success(self, mock_aws_services):
         """
         GIVEN: AWS Config is requested to be disabled/skipped
         WHEN: setup_aws_config is called with enabled='No'
@@ -65,7 +65,7 @@ class TestAWSConfigBasicBehavior:
         # Assert
         assert result is True, "AWS Config setup should return True even when disabled"
     
-    def test_when_enabled_flag_values_are_exactly_yes_or_no_then_they_are_accepted(self):
+    def test_when_enabled_flag_values_are_exactly_yes_or_no_then_they_are_accepted(self, mock_aws_services):
         """
         GIVEN: Main script provides exactly 'Yes' or 'No' values via argparse choices
         WHEN: setup_aws_config is called with these canonical values
@@ -97,7 +97,7 @@ class TestAWSConfigUserFeedback:
     """
     
     @patch('builtins.print')
-    def test_when_verbose_mode_is_enabled_then_detailed_information_is_displayed(self, mock_print):
+    def test_when_verbose_mode_is_enabled_then_detailed_information_is_displayed(self, mock_print, mock_aws_services):
         """
         GIVEN: User wants detailed information about the operation
         WHEN: setup_aws_config is called with verbose=True
@@ -128,7 +128,7 @@ class TestAWSConfigUserFeedback:
     
     @patch('modules.aws_config.check_config_in_region')
     @patch('builtins.print')
-    def test_when_dry_run_mode_is_enabled_then_preview_actions_are_shown(self, mock_print, mock_check_config):
+    def test_when_dry_run_mode_is_enabled_then_preview_actions_are_shown(self, mock_print, mock_check_config, mock_aws_services):
         """
         GIVEN: User wants to preview actions without making changes and Config needs changes
         WHEN: setup_aws_config is called with dry_run=True and regions need configuration
@@ -162,7 +162,7 @@ class TestAWSConfigUserFeedback:
         assert 'Would make the following changes' in all_output, "Should describe what would be done"
     
     @patch('builtins.print')
-    def test_when_aws_config_is_disabled_then_huge_warning_is_shown(self, mock_print):
+    def test_when_aws_config_is_disabled_then_huge_warning_is_shown(self, mock_print, mock_aws_services):
         """
         GIVEN: User has disabled AWS Config in their configuration
         WHEN: setup_aws_config is called with enabled='No'
@@ -187,7 +187,7 @@ class TestAWSConfigUserFeedback:
         assert 'Config setup SKIPPED due to enabled=No parameter' in all_output, "Should indicate service is skipped"
     
     @patch('builtins.print')
-    def test_when_function_runs_then_proper_banner_formatting_is_used(self, mock_print):
+    def test_when_function_runs_then_proper_banner_formatting_is_used(self, mock_print, mock_aws_services):
         """
         GIVEN: User runs the AWS Config setup
         WHEN: setup_aws_config is called
@@ -221,7 +221,7 @@ class TestAWSConfigRegionHandling:
     
     @patch('modules.aws_config.check_config_in_region')
     @patch('builtins.print')
-    def test_when_single_region_is_provided_then_it_becomes_main_region(self, mock_print, mock_check_config):
+    def test_when_single_region_is_provided_then_it_becomes_main_region(self, mock_print, mock_check_config, mock_aws_services):
         """
         GIVEN: User provides only one region in their configuration
         WHEN: setup_aws_config is called with a single region and verbose mode
@@ -256,7 +256,7 @@ class TestAWSConfigRegionHandling:
     
     @patch('modules.aws_config.check_config_in_region')
     @patch('builtins.print')
-    def test_when_multiple_regions_provided_then_first_is_main_others_are_secondary(self, mock_print, mock_check_config):
+    def test_when_multiple_regions_provided_then_first_is_main_others_are_secondary(self, mock_print, mock_check_config, mock_aws_services):
         """
         GIVEN: User provides multiple regions in their configuration
         WHEN: setup_aws_config is called with multiple regions and verbose mode
@@ -307,7 +307,7 @@ class TestAWSConfigErrorResilience:
     """
     
     @patch('builtins.print')
-    def test_when_unexpected_exception_occurs_then_error_is_handled_gracefully(self, mock_print):
+    def test_when_unexpected_exception_occurs_then_error_is_handled_gracefully(self, mock_print, mock_aws_services):
         """
         GIVEN: An unexpected error occurs during execution
         WHEN: setup_aws_config encounters an exception
@@ -348,7 +348,7 @@ class TestPrintcUtilityFunction:
     """
     
     @patch('builtins.print')
-    def test_when_printc_is_called_then_colored_output_is_formatted_correctly(self, mock_print):
+    def test_when_printc_is_called_then_colored_output_is_formatted_correctly(self, mock_print, mock_aws_services):
         """
         GIVEN: Need to display colored output to users
         WHEN: printc is called with color and message
@@ -370,7 +370,7 @@ class TestPrintcUtilityFunction:
         assert test_color in call_args, "Should include the color code"
     
     @patch('builtins.print')
-    def test_when_printc_called_with_kwargs_then_they_are_passed_through(self, mock_print):
+    def test_when_printc_called_with_kwargs_then_they_are_passed_through(self, mock_print, mock_aws_services):
         """
         GIVEN: Need to pass additional parameters to print function
         WHEN: printc is called with additional keyword arguments
