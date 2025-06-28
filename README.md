@@ -88,6 +88,13 @@ org-id = '{org-id}'
 root-ou = '{root-ou}'
 ```
 
+**repos.toml configuration** (required for existing installations):
+```toml
+[[repos]]
+name = "Foundation-security-services-setup"
+```
+Add this entry under `Foundation-AWS-Core-SSO-Configuration` in `Installer/apps/foundation/repos.toml`, or copy `Installer/apps.example/foundation/repos.toml` to `Installer/apps/foundation/repos.toml`.
+
 **Getting Started**: 
 - **New installation**: No action needed
 - **Existing installation**: Copy the complete `Foundation-security-services-setup` section from `Installer/apps.example/foundation/parameters.toml` and add to your existing parameters file
