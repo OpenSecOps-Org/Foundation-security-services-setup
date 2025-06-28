@@ -1,5 +1,8 @@
 # Change Log
 
+## v0.1.4
+    * Further README updates.
+
 ## v0.1.3
     * Further README updates.
 
