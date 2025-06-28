@@ -1,5 +1,8 @@
 # Change Log
 
+## v0.1.2
+    * Updated the README.
+
 ## v0.1.1
     * Improved output formatting for better readability and professional appearance.
     * Removed redundant processing messages that duplicated service banner information.

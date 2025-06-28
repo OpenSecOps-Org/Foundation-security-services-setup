@@ -50,15 +50,7 @@ Infrastructure engineers typically spend **hours or days** manually:
 
 **After** (Automated):
 ```bash
-./setup-security-services \
-  --admin-account 123456789012 \
-  --security-account 234567890123 \
-  --regions us-east-1,us-west-2,eu-west-1 \
-  --cross-account-role AWSControlTowerExecution \
-  --org-id o-example12345 \
-  --root-ou r-example12345 \
-  --dry-run
-
+./deploy
 # ✅ All services configured in minutes
 ```
 
@@ -112,10 +104,10 @@ root-ou = '{root-ou}'
 
 **Getting Started**: Example configuration for this component can be found in `Installer/apps.example/foundation/parameters.toml`. 
 
-- **New installation**: Copy the entire file to `Installer/apps/foundation/parameters.toml`
-- **Existing installation**: Look for the complete `Foundation-security-services-setup` section (including the header comment block and all parameter bindings) in the example file and copy that entire section to your existing `Installer/apps/foundation/parameters.toml`
-
-Customize the service enable/disable settings as needed.
+- **New installation**: No need to do anything.
+- **Existing installation**:
+1. Look for the complete `Foundation-security-services-setup` section (including the header comment block and all parameter bindings) in the example file and copy that entire section to your existing `Installer/apps/foundation/parameters.toml`. Customize the service enable/disable settings as needed.
+2. Copy `Installer/apps.example/foundation/repos.toml` to `Installer/apps/foundation/repos.toml` (or just add the `Foundation-security-services-setup` section immediately after the section for `Foundation-AWS-Core-SSO-Configuration`).
 
 **Note**: This configuration method only applies when using the OpenSecOps Installer. For standalone usage, all parameters are passed via command-line arguments as shown in the usage examples below.
 

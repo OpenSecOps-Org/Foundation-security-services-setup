@@ -7,10 +7,6 @@ samconfig*
 
 /apps/
 
-# Claude development files - exclude from published releases
-CLAUDE.md
-.claude/
-
 
 # Created by https://www.gitignore.io/api/osx,linux,python,windows,pycharm,visualstudiocode
 
@@ -198,7 +194,6 @@ celerybeat-schedule.*
 
 # Environments
 .env
-.env.test
 .venv
 env/
 venv/
