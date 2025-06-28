@@ -2,11 +2,11 @@
 
 **Automated AWS security service configuration for infrastructure engineers**
 
-> **⚠️ PRE-RELEASE VERSION (v0.1.0)**: This version provides comprehensive read-only analysis and discovery of AWS security services. It does not yet create or modify AWS resources. Full automation capabilities coming in v1.0.0.
+> **⚠️ PRE-RELEASE VERSION (v0.1.0)**: This version provides comprehensive read-only analysis and discovery of AWS security services. It does not yet mutate AWS resources. Full automation capabilities coming in v1.0.0.
 
 ## The Problem
 
-Setting up AWS security services across an organization is **time-consuming, repetitive, and error-prone**. Infrastructure engineers face several challenges:
+Setting up AWS security services (AWS Config, GuardDuty, IAM Access Analyzer, Security Hub, Detective, Inspector) across an organization is time-consuming, repetitive, and error-prone. Infrastructure engineers face several challenges:
 
 ### Manual Configuration Pain Points
 - **Time-consuming setup**: Each service requires multiple console clicks across regions and accounts
@@ -16,19 +16,19 @@ Setting up AWS security services across an organization is **time-consuming, rep
 - **Difficult to disable**: Reversing the setup is equally laborious with different procedures per service
 
 ### The Current Reality
-Infrastructure engineers typically spend **hours or days** manually:
+Infrastructure engineers typically spend hours or days manually:
+- Enabling AWS Config with correct IAM global event recording
 - Enabling GuardDuty in each region and delegating to security account
-- Configuring Detective with proper region selection
-- Setting up Inspector with auto-activation for existing and new accounts
 - Creating IAM Access Analyzer with organization-wide scope
 - Configuring Security Hub with PROD/DEV control policies
-- Enabling AWS Config with correct IAM global event recording
+- Configuring Detective with proper region selection
+- Setting up Inspector with auto-activation for existing and new accounts
 
 ## The Solution
 
-**This Foundation component solves the configuration complexity** by providing a single, automated interface. Infrastructure engineers can now:
+This Foundation component solves the configuration complexity by providing a single, automated interface. Infrastructure engineers can now:
 
-✅ **Specify what they want**: Simple Yes/No flags for each service  
+✅ **Specify what they want**: Simple Yes/No flags for each service to activate or deactivate it
 ✅ **Let automation handle the rest**: All configuration complexity handled automatically  
 ✅ **Work consistently**: Same interface whether running standalone or with OpenSecOps  
 ✅ **Preview changes safely**: Dry-run mode shows exactly what will be configured  
@@ -37,7 +37,7 @@ Infrastructure engineers typically spend **hours or days** manually:
 ### Before vs After
 
 **Before** (Manual Process):
-```
+
 1. Log into org management account console
 2. Navigate to GuardDuty → Enable in us-east-1 → Delegate to security account
 3. Repeat step 2 for us-west-2, eu-west-1...
@@ -46,7 +46,6 @@ Infrastructure engineers typically spend **hours or days** manually:
 6. Navigate to Security Hub → Enable → Delegate...
 7. Repeat for Detective, Inspector, Access Analyzer, Config...
    [Hours of repetitive console clicking]
-```
 
 **After** (Automated):
 ```bash
@@ -74,7 +73,7 @@ All services are properly delegated from the organization management account to 
 
 ## Configuration (OpenSecOps Installer Only)
 
-When running as part of the OpenSecOps Installer, services can be enabled/disabled via parameters in `Installer/apps/foundation/parameters.toml`:
+When running as part of the OpenSecOps Installer, services are enabled/disabled via parameters in `Installer/apps/foundation/parameters.toml`:
 
 ```toml
 # --------------------------------------------------------------
@@ -102,7 +101,7 @@ org-id = '{org-id}'
 root-ou = '{root-ou}'
 ```
 
-**Getting Started**: Example configuration for this component can be found in `Installer/apps.example/foundation/parameters.toml`. 
+**Getting Started**: The example configuration for this component can be found in `Installer/apps.example/foundation/parameters.toml`. 
 
 - **New installation**: No need to do anything.
 - **Existing installation**:
@@ -139,29 +138,27 @@ You can also run the setup script directly without the OpenSecOps Installer:
 
 ```console
 ./setup-security-services \
-  --admin-account 123456789012 \
-  --security-account 234567890123 \
+  --admin-account 111111111111 \
+  --security-account 222222222222 \
   --regions us-east-1,us-west-2,eu-west-1 \
   --cross-account-role AWSControlTowerExecution \
   --org-id o-example12345 \
-  --root-ou r-example12345 \
-  --dry-run
+  --root-ou r-example12345
 ```
 
 To disable specific services or enable optional ones:
 
 ```console
 ./setup-security-services \
-  --admin-account 123456789012 \
-  --security-account 234567890123 \
+  --admin-account 111111111111 \
+  --security-account 222222222222 \
   --regions us-east-1,us-west-2,eu-west-1 \
   --cross-account-role AWSControlTowerExecution \
   --org-id o-example12345 \
   --root-ou r-example12345 \
   --security-hub No \
   --detective Yes \
-  --inspector Yes \
-  --dry-run
+  --inspector Yes
 ```
 
 **Required Parameters:**
@@ -186,7 +183,7 @@ The utility provides different levels of information based on the configuration 
 
 When services are already properly configured according to OpenSecOps security standards:
 
-```
+```console
 ✅ GuardDuty is already properly configured in all regions!
    No changes needed - existing setup meets stringent security standards.
 ```
@@ -200,7 +197,7 @@ When services are already properly configured according to OpenSecOps security s
 
 When services require configuration changes or initial setup:
 
-```
+```console
 ⚠️  GuardDuty needs configuration in some regions:
   • us-east-1: GuardDuty is not enabled in this region
   • us-west-2: Finding frequency is 6 hours - too slow for optimal threat detection
@@ -222,7 +219,7 @@ When services require configuration changes or initial setup:
 
 When using `--verbose` flag, you get comprehensive details about current configurations:
 
-```
+```console
 🔍 Checking GuardDuty in region us-east-1...
 ✅ GuardDuty properly configured in us-east-1
 
@@ -252,7 +249,7 @@ When using `--verbose` flag, you get comprehensive details about current configu
 
 When using `--dry-run`, see exactly what would be changed without making modifications:
 
-```
+```console
 🔍 DRY RUN: Would make the following changes:
   • us-east-1: Enable GuardDuty and create detector
   • us-west-2: Set finding frequency to FIFTEEN_MINUTES for optimal security
@@ -269,7 +266,7 @@ When using `--dry-run`, see exactly what would be changed without making modific
 
 When attempting to disable critical security services:
 
-```
+```console
 🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨
 🚨 CRITICAL WARNING: AWS Config Disable Requested! 🚨
 🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨
@@ -395,7 +392,7 @@ All tests use AWS mocking (moto) for safe testing without real AWS resources. Te
 
 ## Example printout
 
-```bash
+```console
 ============================================================
   Foundation Security Services Setup
 ------------------------------------------------------------
