@@ -156,85 +156,6 @@ This utility is designed to be **completely safe** when run against existing AWS
 ✅ **Access Analyzer with different scopes** → Skips creation, reports existing configurations  
 ✅ **AWS Config with different delivery channels** → Preserves existing channels and recorders  
 
-## Output Examples
-
-### ✅ When Services Meet Standards
-```console
-✅ GuardDuty is already properly configured in all regions!
-   No changes needed - existing setup meets stringent security standards.
-```
-
-### ⚠️ When Services Need Configuration
-```console
-⚠️  GuardDuty needs configuration in some regions:
-  • us-east-1: GuardDuty is not enabled in this region
-  • us-west-2: Finding frequency is 6 hours - too slow for optimal threat detection
-  • eu-west-1: GuardDuty delegated to 999888777666 instead of Security account 234567890123
-
-🔧 Making GuardDuty changes...
-  • us-east-1: Enable GuardDuty and create detector
-  • us-west-2: Set finding frequency to FIFTEEN_MINUTES for optimal security
-  • eu-west-1: Remove existing delegation and delegate to Security account
-```
-
-### 📊 Verbose Mode (--verbose)
-```console
-🔍 Checking GuardDuty in region us-east-1...
-✅ GuardDuty properly configured in us-east-1
-
-📋 Current GuardDuty Configuration:
-🌍 Region: us-east-1
-✅ GuardDuty Detector: abcd1234efgh5678
-   ✅ Status: ENABLED
-   ✅ Finding Frequency: FIFTEEN_MINUTES (optimal)
-✅ Delegated Admin: Security-Administration-Account
-✅ Organization Auto-Enable: True
-✅ Member Accounts: 12 found
-   ✅ All 12 member accounts are enabled
-```
-
-### 🔍 Dry-Run Mode (--dry-run)
-```console
-🔍 DRY RUN: Would make the following changes:
-  • us-east-1: Enable GuardDuty and create detector
-  • us-west-2: Set finding frequency to FIFTEEN_MINUTES for optimal security
-  • eu-west-1: Delegate GuardDuty administration to Security account
-```
-
-### 🚨 Service Disable Warnings
-```console
-🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨
-🚨 CRITICAL WARNING: AWS Config Disable Requested! 🚨
-🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨🚨
-
-AWS Config is a CRITICAL security service that:
-• Provides configuration compliance monitoring
-• Enables Security Hub controls and findings
-• Records resource configuration changes
-
-⛔ DISABLING CONFIG WILL BREAK SECURITY MONITORING!
-Config setup SKIPPED due to enabled=No parameter.
-```
-
-## Testing
-
-This component includes comprehensive test coverage with pytest and AWS mocking.
-
-**Install dependencies:**
-```console
-pip install pytest pytest-cov "moto[all]" boto3
-```
-
-**Run tests:**
-```console
-pytest tests/                              # All tests
-pytest tests/unit/                         # Unit tests only
-pytest tests/integration/                  # Integration tests only
-pytest tests/ --cov=modules --cov-report=term-missing  # With coverage
-```
-
-All tests use AWS mocking (moto) for safe testing without real AWS resources.
-
 ## Example Output
 
 ## Normal verbosity
@@ -589,3 +510,22 @@ Inspector: ✅ SUCCESS
 
 ✅ All services processed successfully!
 ```
+
+## Testing
+
+This component includes comprehensive test coverage with pytest and AWS mocking.
+
+**Install dependencies:**
+```console
+pip install pytest pytest-cov "moto[all]" boto3
+```
+
+**Run tests:**
+```console
+pytest tests/                              # All tests
+pytest tests/unit/                         # Unit tests only
+pytest tests/integration/                  # Integration tests only
+pytest tests/ --cov=modules --cov-report=term-missing  # With coverage
+```
+
+All tests use AWS mocking (moto) for safe testing without real AWS resources.
