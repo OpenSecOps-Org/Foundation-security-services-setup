@@ -80,8 +80,6 @@ InspectorEnabled = 'No'
 
 admin-account = '{admin-account}'
 security-account = '{security-account}'
-main-region = '{main-region}'
-other-regions = '{other-regions}'
 all-regions = '{all-regions}'
 cross-account-role = '{cross-account-role}'
 org-id = '{org-id}'
@@ -97,7 +95,7 @@ Add this entry under `Foundation-AWS-Core-SSO-Configuration` in `Installer/apps/
 
 **Getting Started**: 
 - **New installation**: No action needed
-- **Existing installation**: Copy the complete `Foundation-security-services-setup` section from `Installer/apps.example/foundation/parameters.toml` and add to your existing parameters file
+- **Existing installation**: Copy the `Foundation-security-services-setup` section from `Installer/apps.example/foundation/parameters.toml` and add to your existing parameters file
 
 Deploy with:
 ```console
@@ -114,8 +112,8 @@ You can run the setup script directly without the OpenSecOps Installer:
 ./setup-security-services \
   --admin-account 111111111111 \
   --security-account 222222222222 \
-  --regions us-east-1,us-west-2,eu-west-1 \
-  --cross-account-role AWSControlTowerExecution \
+  --regions us-east-1,us-west-2,eu-west-1 \        # Main region first
+  --cross-account-role AWSControlTowerExecution \  # `OrganizationAccountAccessRole` without Control Tower
   --org-id o-example12345 \
   --root-ou r-example12345
 ```
@@ -125,8 +123,8 @@ You can run the setup script directly without the OpenSecOps Installer:
 ./setup-security-services \
   --admin-account 111111111111 \
   --security-account 222222222222 \
-  --regions us-east-1,us-west-2,eu-west-1 \
-  --cross-account-role AWSControlTowerExecution \
+  --regions us-east-1,us-west-2,eu-west-1 \        # Main region first
+  --cross-account-role AWSControlTowerExecution \  # `OrganizationAccountAccessRole` without Control Tower
   --org-id o-example12345 \
   --root-ou r-example12345 \
   --security-hub No \

@@ -1,5 +1,8 @@
 # Change Log
 
+## v0.1.6
+    * Updated the README.
+
 ## v0.1.5
     * README consolidated.
 
