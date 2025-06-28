@@ -237,7 +237,11 @@ All tests use AWS mocking (moto) for safe testing without real AWS resources.
 
 ## Example Output
 
+## Normal verbosity
+
 ```console
+./deploy
+
 ============================================================
   Foundation Security Services Setup
 ------------------------------------------------------------
@@ -259,6 +263,24 @@ Checking GuardDuty setup in 2 regions...
 ✅ GuardDuty completed successfully
 
 ============================================================
+IAM ACCESS ANALYZER SETUP
+============================================================
+Checking IAM Access Analyzer setup...
+  ⚠️  Access Analyzer needs changes in eu-north-1
+    • Main region missing unused access analyzer
+⚠️  IAM Access Analyzer needs configuration:
+
+📋 MISSING ANALYZERS:
+
+  🌍 Region: eu-north-1
+    • Missing: Unused Access Analyzer (main region only)
+      Recommend: Create ORGANIZATION analyzer for unused access detection
+
+🔧 Making Access Analyzer changes...
+  TODO: Create required analyzers in eu-north-1
+✅ IAM Access Analyzer completed successfully
+
+============================================================
 SECURITY HUB SETUP
 ============================================================
 ✅ Security Hub is optimally configured for consolidated controls
@@ -268,6 +290,292 @@ SECURITY HUB SETUP
 ✅ 2 control policies with 28 organizational assignments
 ✅ PROD and DEV control policies identified
 ✅ Security Hub completed successfully
+
+============================================================
+DETECTIVE SETUP
+============================================================
+Detective is disabled - checking for active resources to deactivate
+✅ Detective completed successfully
+
+============================================================
+INSPECTOR SETUP
+============================================================
+Inspector is disabled - checking for active resources to deactivate
+✅ Inspector completed successfully
+
+============================================================
+FINAL SUMMARY
+============================================================
+AWS Config: ✅ SUCCESS
+GuardDuty: ✅ SUCCESS
+IAM Access Analyzer: ✅ SUCCESS
+Security Hub: ✅ SUCCESS
+Detective: ✅ SUCCESS
+Inspector: ✅ SUCCESS
+
+✅ All services processed successfully!
+```
+
+## Verbose
+
+```console
+./deploy --verbose
+
+============================================================
+  Foundation Security Services Setup
+------------------------------------------------------------
+📊 VERBOSE MODE: Additional debugging output enabled
+
+Service flags:
+  --aws-config: Yes
+  --guardduty: Yes
+  --access-analyzer: Yes
+  --security-hub: Yes
+  --detective: No
+  --inspector: No
+
+AWS parameters:
+  --admin-account: 111111111111
+  --security-account: 222222222222
+  --regions: eu-north-1,us-east-1
+  --cross-account-role: AWSControlTowerExecution
+  --org-id: o-01234abcde
+  --root-ou: r-xxxx
+
+Other arguments:
+  --dry-run: False
+  --verbose: True
+
+============================================================
+AWS CONFIG SETUP
+============================================================
+Enabled: Yes
+Regions: ['eu-north-1', 'us-east-1']
+Organization ID: o-01234abcde
+Dry Run: False
+Verbose: True
+Checking AWS Config setup in 2 regions...
+Main region: eu-north-1 (should record IAM global events)
+Other regions: ['us-east-1'] (should exclude IAM global events)
+
+🔍 Checking Config in region eu-north-1...
+  ✅ Config properly configured in eu-north-1
+
+🔍 Checking Config in region us-east-1...
+  ✅ Config properly configured in us-east-1
+✅ AWS Config is already properly configured in all regions!
+   No changes needed - existing setup meets stringent security standards.
+
+📋 Current AWS Config Configuration:
+
+🌍 Region: eu-north-1
+  ✅ Configuration Recorders: 1 found
+     📝 Recorder 'default':
+        IAM Role: arn:aws:iam::111111111111:role/aws-service-role/config.amazonaws.com/AWSServiceRoleForConfig
+        📊 Recording: All supported resources
+        🌍 IAM Global Resources: ✅ Included
+        ⏱️  Recording Frequency: CONTINUOUS
+  ✅ Delivery Channels: 1 found
+     📦 Channel 'default':
+        S3 Bucket: config-bucket-111111111111
+  ✅ Config Rules: 242 active rules
+     📋 AWS Managed Rules: 225
+     📋 Custom Rules: 17
+
+🌍 Region: us-east-1
+  ✅ Configuration Recorders: 1 found
+     📝 Recorder 'default':
+        IAM Role: arn:aws:iam::111111111111:role/aws-service-role/config.amazonaws.com/AWSServiceRoleForConfig
+        📊 Recording: All resources except 4 excluded types
+        🚫 Excluded: AWS::IAM::Policy, AWS::IAM::User, AWS::IAM::Role...
+        🌍 IAM Global Resources: ❌ Excluded
+        ⏱️  Recording Frequency: CONTINUOUS
+  ✅ Delivery Channels: 1 found
+     📦 Channel 'default':
+        S3 Bucket: config-bucket-111111111111
+  ✅ Config Rules: 251 active rules
+     📋 AWS Managed Rules: 234
+     📋 Custom Rules: 17
+✅ AWS Config completed successfully
+
+============================================================
+GUARDDUTY SETUP
+============================================================
+Enabled: Yes
+Regions: ['eu-north-1', 'us-east-1']
+Admin Account: 111111111111
+Security Account: 222222222222
+Organization ID: o-01234abcde
+Dry Run: False
+Verbose: True
+Checking GuardDuty setup in 2 regions...
+Admin account (111111111111): Should enable GuardDuty and delegate to Security account
+Security account (222222222222): Should be delegated admin for organization
+
+🔍 Checking GuardDuty in region eu-north-1...
+    🔄 Switching to delegated admin account for complete data...
+  ✅ GuardDuty properly configured in eu-north-1
+
+🔍 Checking GuardDuty in region us-east-1...
+    🔄 Switching to delegated admin account for complete data...
+  ✅ GuardDuty properly configured in us-east-1
+✅ GuardDuty is already properly configured in all regions!
+   No changes needed - existing setup meets stringent security standards.
+
+📋 Current GuardDuty Configuration:
+
+🌍 Region: eu-north-1
+  ✅ GuardDuty Detector: 56c909d6a827d835be29e1dxxxxxxxxx
+     ✅ Status: ENABLED
+     ✅ Finding Frequency: FIFTEEN_MINUTES (optimal)
+  ✅ Delegated Admin: Security-Adm
+  ✅ Organization Auto-Enable: True
+  ✅ Auto-Enable Org Members: ALL
+     📊 S3 Data Events: False
+     📊 Kubernetes Audit Logs: False
+     📊 Malware Protection: False
+     ⚠️  S3 data events disabled - consider enabling for enhanced monitoring
+     ⚠️  Malware protection disabled - consider enabling for enhanced security
+  ✅ Member Accounts: 114 found
+     ✅ All 10 member accounts are enabled
+
+🌍 Region: us-east-1
+  ✅ GuardDuty Detector: 0ec909d8a800bb5dff4c83ecyyyyyyyy
+     ✅ Status: ENABLED
+     ✅ Finding Frequency: FIFTEEN_MINUTES (optimal)
+  ✅ Delegated Admin: Security-Adm
+  ✅ Organization Auto-Enable: True
+  ✅ Auto-Enable Org Members: ALL
+     📊 S3 Data Events: False
+     📊 Kubernetes Audit Logs: False
+     📊 Malware Protection: False
+     ⚠️  S3 data events disabled - consider enabling for enhanced monitoring
+     ⚠️  Malware protection disabled - consider enabling for enhanced security
+  ✅ Member Accounts: 114 found
+     ✅ All 114 member accounts are enabled
+✅ GuardDuty completed successfully
+
+============================================================
+IAM ACCESS ANALYZER SETUP
+============================================================
+Enabled: Yes
+Regions: ['eu-north-1', 'us-east-1']
+Admin Account: 111111111111
+Security Account: 222222222222
+Organization ID: o-01234abcde
+Dry Run: False
+Verbose: True
+Checking IAM Access Analyzer setup...
+Expected regions: eu-north-1, us-east-1
+Admin account (111111111111): Should delegate to Security account
+Security account (222222222222): Should be delegated admin for organization
+Main region (eu-north-1): Should have both external and unused access analyzers
+Other regions: Should have external access analyzers only
+
+🔍 Checking Access Analyzer delegation (organization-wide)...
+    Found 1 delegated admin(s) for Access Analyzer
+    ✅ Delegated to Security account: Security-Adm
+✅ Access Analyzer properly delegated to Security account
+🔍 Scanning 17 AWS regions for analyzers in unexpected regions...
+  ✅ No analyzers found in unexpected regions
+
+🔍 Checking analyzers in region eu-north-1...
+    🔄 Checking from delegated admin perspective...
+  ⚠️  Access Analyzer needs changes in eu-north-1
+
+🔍 Checking analyzers in region us-east-1...
+    🔄 Checking from delegated admin perspective...
+  ✅ Access Analyzer properly configured in us-east-1
+⚠️  IAM Access Analyzer needs configuration:
+
+📋 MISSING ANALYZERS:
+
+  🌍 Region: eu-north-1
+    • Missing: Unused Access Analyzer (main region only)
+      Recommend: Create ORGANIZATION analyzer for unused access detection
+
+🔧 Making Access Analyzer changes...
+  TODO: Create required analyzers in eu-north-1
+✅ IAM Access Analyzer completed successfully
+
+============================================================
+SECURITY HUB SETUP
+============================================================
+Enabled: Yes
+Regions: ['eu-north-1', 'us-east-1']
+Admin Account: 111111111111
+Security Account: 222222222222
+Organization ID: o-01234abcde
+Dry Run: False
+Verbose: True
+🔍 Analyzing current Security Hub configuration...
+🔍 Checking Security Hub delegation status...
+🌍 Checking Security Hub in region: eu-north-1
+    🌍 Analyzing Security Hub in region: eu-north-1
+      🎯 Consolidated Controls: ✅ ENABLED
+      🔧 Auto Enable Controls: ✅ DISABLED (correct)
+      📋 Standards enabled: 4
+        - AWS Foundational Security Standard: READY
+        - CIS AWS Foundations Benchmark: READY
+        - NIST SP 800-53: READY
+        - PCI DSS: READY
+      👥 Member accounts: 114
+      🔄 Finding Aggregation: Unknown (0 regions)
+🌍 Checking Security Hub in region: us-east-1
+    🌍 Analyzing Security Hub in region: us-east-1
+      🎯 Consolidated Controls: ✅ ENABLED
+      🔧 Auto Enable Controls: ✅ DISABLED (correct)
+      📋 Standards enabled: 4
+        - AWS Foundational Security Standard: READY
+        - CIS AWS Foundations Benchmark: READY
+        - NIST SP 800-53: READY
+        - PCI DSS: READY
+      👥 Member accounts: 114
+      🔄 Finding Aggregation: Unknown (0 regions)
+📋 Analyzing control policies...
+📋 Analyzing control policies and organizational assignments...
+    🔗 Policy associations found: 28
+    📋 Found policy: DEV (07922ea1-3aeb-48fa-b910-xxxxxxxx)
+    📋 Found policy: PROD (c501c960-3009-4b1a-a698-yyyyyyyy)
+    🧪 DEV policy identified: DEV
+    🏭 PROD policy identified: PROD
+    🔗 Analyzing 28 policy associations...
+✅ Security Hub is optimally configured for consolidated controls
+✅ Consolidated controls enabled in all 2 regions
+✅ Auto-enable controls correctly disabled (manual control selection)
+✅ Finding aggregation configured to main region (eu-north-1)
+✅ 2 control policies with 28 organizational assignments
+✅ PROD and DEV control policies identified
+✅ Security Hub completed successfully
+
+============================================================
+DETECTIVE SETUP
+============================================================
+Enabled: No
+Regions: ['eu-north-1', 'us-east-1']
+Admin Account: 111111111111
+Security Account: 222222222222
+Organization ID: o-01234abcde
+Dry Run: False
+Verbose: True
+Detective is disabled - checking for active resources to deactivate
+   ✅ Detective is not delegated or active - no cleanup needed
+✅ Detective completed successfully
+
+============================================================
+INSPECTOR SETUP
+============================================================
+Enabled: No
+Regions: ['eu-north-1', 'us-east-1']
+Admin Account: 111111111111
+Security Account: 222222222222
+Organization ID: o-01234abcde
+Dry Run: False
+Verbose: True
+Inspector is disabled - checking for active resources to deactivate
+   🔍 Checking all 17 AWS regions for spurious Inspector activation...
+   ✅ Inspector is not delegated or active - no cleanup needed
+✅ Inspector completed successfully
 
 ============================================================
 FINAL SUMMARY
