@@ -437,7 +437,7 @@ Security account (222222222222): Should be delegated admin for organization
      ⚠️  S3 data events disabled - consider enabling for enhanced monitoring
      ⚠️  Malware protection disabled - consider enabling for enhanced security
   ✅ Member Accounts: 114 found
-     ✅ All 10 member accounts are enabled
+     ✅ All 114 member accounts are enabled
 
 🌍 Region: us-east-1
   ✅ GuardDuty Detector: 0ec909d8a800bb5dff4c83ecyyyyyyyy

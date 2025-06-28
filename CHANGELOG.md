@@ -1,5 +1,8 @@
 # Change Log
 
+## v0.1.8
+    * README updated.
+
 ## v0.1.7
     * Deployment script fixed.
     * Updated the README.
