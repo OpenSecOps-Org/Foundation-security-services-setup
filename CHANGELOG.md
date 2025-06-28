@@ -1,5 +1,8 @@
 # Change Log
 
+## v0.1.10
+    * Added missing .python-version file.
+
 ## v0.1.9
     * README updated.
 
