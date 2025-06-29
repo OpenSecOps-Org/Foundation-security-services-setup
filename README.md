@@ -173,16 +173,16 @@ This utility is designed to be **completely safe** when run against existing AWS
 AWS CONFIG SETUP
 ============================================================
 Checking AWS Config setup in 2 regions...
-✅ AWS Config is already properly configured in all regions!
-   No changes needed - existing setup meets stringent security standards.
+✅ AWS Config is already properly configured in all regions
+   No changes needed - existing setup meets stringent security standards
 ✅ AWS Config completed successfully
 
 ============================================================
 GUARDDUTY SETUP
 ============================================================
 Checking GuardDuty setup in 2 regions...
-✅ GuardDuty is already properly configured in all regions!
-   No changes needed - existing setup meets stringent security standards.
+✅ GuardDuty is already properly configured in all regions
+   No changes needed - existing setup meets stringent security standards
 ✅ GuardDuty completed successfully
 
 ============================================================
@@ -206,12 +206,19 @@ Checking IAM Access Analyzer setup...
 ============================================================
 SECURITY HUB SETUP
 ============================================================
-✅ Security Hub is optimally configured for consolidated controls
-✅ Consolidated controls enabled in all 2 regions
-✅ Auto-enable controls correctly disabled (manual control selection)
-✅ Finding aggregation configured to main region (eu-north-1)
-✅ 2 control policies with 28 organizational assignments
-✅ PROD and DEV control policies identified
+
+⚠️  ANOMALOUS SECURITY HUB HUBS DETECTED:
+Security Hub hubs are active in regions outside your configuration:
+  • eu-central-1: Hub is active (not in your regions list)
+
+ANOMALY RECOMMENDATIONS:
+  • Review: Determine if these hubs are intentional or configuration drift
+  • Recommended: Disable Security Hub in these regions to control costs
+  • Note: Adding regions to OpenSecOps requires full system redeployment
+  Cost Impact: Security Hub generates charges per region and per finding
+⚠️  Security Hub configuration needs optimization:
+  • Review anomalous hubs in 1 unexpected region(s)
+    (Hubs outside configured regions may generate unexpected costs)
 ✅ Security Hub completed successfully
 
 ============================================================
@@ -236,7 +243,7 @@ Security Hub: ✅ SUCCESS
 Detective: ✅ SUCCESS
 Inspector: ✅ SUCCESS
 
-✅ All services processed successfully!
+✅ All services processed successfully
 ```
 
 ## Verbose
@@ -247,7 +254,7 @@ Inspector: ✅ SUCCESS
 ============================================================
   Foundation Security Services Setup
 ------------------------------------------------------------
-📊 VERBOSE MODE: Additional debugging output enabled
+VERBOSE MODE: Additional debugging output enabled
 
 Service flags:
   --aws-config: Yes
@@ -262,8 +269,8 @@ AWS parameters:
   --security-account: 222222222222
   --regions: eu-north-1,us-east-1
   --cross-account-role: AWSControlTowerExecution
-  --org-id: o-01234abcde
-  --root-ou: r-xxxx
+  --org-id: 0-xxxxxxxxxx
+  --root-ou: r-yyyy
 
 Other arguments:
   --dry-run: False
@@ -274,51 +281,54 @@ AWS CONFIG SETUP
 ============================================================
 Enabled: Yes
 Regions: ['eu-north-1', 'us-east-1']
-Organization ID: o-01234abcde
+Organization ID: 0-xxxxxxxxxx
 Dry Run: False
 Verbose: True
 Checking AWS Config setup in 2 regions...
 Main region: eu-north-1 (should record IAM global events)
 Other regions: ['us-east-1'] (should exclude IAM global events)
 
-🔍 Checking Config in region eu-north-1...
+Checking Config in region eu-north-1...
   ✅ Config properly configured in eu-north-1
 
-🔍 Checking Config in region us-east-1...
+Checking Config in region us-east-1...
   ✅ Config properly configured in us-east-1
-✅ AWS Config is already properly configured in all regions!
-   No changes needed - existing setup meets stringent security standards.
 
-📋 Current AWS Config Configuration:
+Checking for AWS Config recorders in unexpected regions...
+    Checking 15 regions outside configuration...
+✅ AWS Config is already properly configured in all regions
+   No changes needed - existing setup meets stringent security standards
 
-🌍 Region: eu-north-1
+Current AWS Config Configuration:
+
+Region: eu-north-1
   ✅ Configuration Recorders: 1 found
-     📝 Recorder 'default':
+     Recorder 'default':
         IAM Role: arn:aws:iam::111111111111:role/aws-service-role/config.amazonaws.com/AWSServiceRoleForConfig
-        📊 Recording: All supported resources
-        🌍 IAM Global Resources: ✅ Included
-        ⏱️  Recording Frequency: CONTINUOUS
+        Recording: All supported resources
+        IAM Global Resources: ✅ Included
+        Recording Frequency: CONTINUOUS
   ✅ Delivery Channels: 1 found
-     📦 Channel 'default':
+     Channel 'default':
         S3 Bucket: config-bucket-111111111111
   ✅ Config Rules: 242 active rules
-     📋 AWS Managed Rules: 225
-     📋 Custom Rules: 17
+     AWS Managed Rules: 225
+     Custom Rules: 17
 
-🌍 Region: us-east-1
+Region: us-east-1
   ✅ Configuration Recorders: 1 found
-     📝 Recorder 'default':
+     Recorder 'default':
         IAM Role: arn:aws:iam::111111111111:role/aws-service-role/config.amazonaws.com/AWSServiceRoleForConfig
-        📊 Recording: All resources except 4 excluded types
-        🚫 Excluded: AWS::IAM::Policy, AWS::IAM::User, AWS::IAM::Role...
-        🌍 IAM Global Resources: ❌ Excluded
-        ⏱️  Recording Frequency: CONTINUOUS
+        Recording: All resources except 4 excluded types
+        Excluded: AWS::IAM::Policy, AWS::IAM::User, AWS::IAM::Role...
+        IAM Global Resources: ✅ Excluded
+        Recording Frequency: CONTINUOUS
   ✅ Delivery Channels: 1 found
-     📦 Channel 'default':
+     Channel 'default':
         S3 Bucket: config-bucket-111111111111
   ✅ Config Rules: 251 active rules
-     📋 AWS Managed Rules: 234
-     📋 Custom Rules: 17
+     AWS Managed Rules: 234
+     Custom Rules: 17
 ✅ AWS Config completed successfully
 
 ============================================================
@@ -328,7 +338,7 @@ Enabled: Yes
 Regions: ['eu-north-1', 'us-east-1']
 Admin Account: 111111111111
 Security Account: 222222222222
-Organization ID: o-01234abcde
+Organization ID: 0-xxxxxxxxxx
 Dry Run: False
 Verbose: True
 Checking GuardDuty setup in 2 regions...
@@ -342,40 +352,39 @@ Security account (222222222222): Should be delegated admin for organization
 🔍 Checking GuardDuty in region us-east-1...
     🔄 Switching to delegated admin account for complete data...
   ✅ GuardDuty properly configured in us-east-1
-✅ GuardDuty is already properly configured in all regions!
-   No changes needed - existing setup meets stringent security standards.
+
+🔍 Checking for GuardDuty detectors in unexpected regions...
+    Checking 15 regions outside configuration...
+✅ GuardDuty is already properly configured in all regions
+   No changes needed - existing setup meets stringent security standards
 
 📋 Current GuardDuty Configuration:
 
 🌍 Region: eu-north-1
-  ✅ GuardDuty Detector: 56c909d6a827d835be29e1dxxxxxxxxx
+  ✅ GuardDuty Detector: 56c909d6a827d835be29e1d8xxxxxxxx
      ✅ Status: ENABLED
      ✅ Finding Frequency: FIFTEEN_MINUTES (optimal)
-  ✅ Delegated Admin: Security-Adm
+  ✅ Delegated to Security account: 222222222222
   ✅ Organization Auto-Enable: True
   ✅ Auto-Enable Org Members: ALL
-     📊 S3 Data Events: False
-     📊 Kubernetes Audit Logs: False
-     📊 Malware Protection: False
-     ⚠️  S3 data events disabled - consider enabling for enhanced monitoring
-     ⚠️  Malware protection disabled - consider enabling for enhanced security
-  ✅ Member Accounts: 114 found
-     ✅ All 114 member accounts are enabled
+     S3 Data Events: False
+     Kubernetes Audit Logs: False
+     Malware Protection: False
+  ✅ Member Accounts: 142 found
+     ✅ All 142 member accounts are enabled
 
 🌍 Region: us-east-1
   ✅ GuardDuty Detector: 0ec909d8a800bb5dff4c83ecyyyyyyyy
      ✅ Status: ENABLED
      ✅ Finding Frequency: FIFTEEN_MINUTES (optimal)
-  ✅ Delegated Admin: Security-Adm
+  ✅ Delegated to Security account: 222222222222
   ✅ Organization Auto-Enable: True
   ✅ Auto-Enable Org Members: ALL
-     📊 S3 Data Events: False
-     📊 Kubernetes Audit Logs: False
-     📊 Malware Protection: False
-     ⚠️  S3 data events disabled - consider enabling for enhanced monitoring
-     ⚠️  Malware protection disabled - consider enabling for enhanced security
-  ✅ Member Accounts: 114 found
-     ✅ All 114 member accounts are enabled
+     S3 Data Events: False
+     Kubernetes Audit Logs: False
+     Malware Protection: False
+  ✅ Member Accounts: 142 found
+     ✅ All 142 member accounts are enabled
 ✅ GuardDuty completed successfully
 
 ============================================================
@@ -385,7 +394,7 @@ Enabled: Yes
 Regions: ['eu-north-1', 'us-east-1']
 Admin Account: 111111111111
 Security Account: 222222222222
-Organization ID: o-01234abcde
+Organization ID: 0-xxxxxxxxxx
 Dry Run: False
 Verbose: True
 Checking IAM Access Analyzer setup...
@@ -396,8 +405,7 @@ Main region (eu-north-1): Should have both external and unused access analyzers
 Other regions: Should have external access analyzers only
 
 🔍 Checking Access Analyzer delegation (organization-wide)...
-    Found 1 delegated admin(s) for Access Analyzer
-    ✅ Delegated to Security account: Security-Adm
+    ✅ Delegated to Security account: 222222222222
 ✅ Access Analyzer properly delegated to Security account
 🔍 Scanning 17 AWS regions for analyzers in unexpected regions...
   ✅ No analyzers found in unexpected regions
@@ -428,47 +436,60 @@ Enabled: Yes
 Regions: ['eu-north-1', 'us-east-1']
 Admin Account: 111111111111
 Security Account: 222222222222
-Organization ID: o-01234abcde
+Organization ID: 0-xxxxxxxxxx
 Dry Run: False
 Verbose: True
 🔍 Analyzing current Security Hub configuration...
 🔍 Checking Security Hub delegation status...
 🌍 Checking Security Hub in region: eu-north-1
     🌍 Analyzing Security Hub in region: eu-north-1
-      🎯 Consolidated Controls: ✅ ENABLED
-      🔧 Auto Enable Controls: ✅ DISABLED (correct)
-      📋 Standards enabled: 4
+      Consolidated Controls: ✅ ENABLED
+      Auto Enable Controls: ✅ DISABLED (correct)
+      Standards enabled: 4
         - AWS Foundational Security Standard: READY
         - CIS AWS Foundations Benchmark: READY
         - NIST SP 800-53: READY
         - PCI DSS: READY
-      👥 Member accounts: 114
+      Member accounts: 142
       🔄 Finding Aggregation: Unknown (0 regions)
 🌍 Checking Security Hub in region: us-east-1
     🌍 Analyzing Security Hub in region: us-east-1
-      🎯 Consolidated Controls: ✅ ENABLED
-      🔧 Auto Enable Controls: ✅ DISABLED (correct)
-      📋 Standards enabled: 4
+      Consolidated Controls: ✅ ENABLED
+      Auto Enable Controls: ✅ DISABLED (correct)
+      Standards enabled: 4
         - AWS Foundational Security Standard: READY
         - CIS AWS Foundations Benchmark: READY
         - NIST SP 800-53: READY
         - PCI DSS: READY
-      👥 Member accounts: 114
+      Member accounts: 142
       🔄 Finding Aggregation: Unknown (0 regions)
 📋 Analyzing control policies...
 📋 Analyzing control policies and organizational assignments...
     🔗 Policy associations found: 28
-    📋 Found policy: DEV (07922ea1-3aeb-48fa-b910-xxxxxxxx)
-    📋 Found policy: PROD (c501c960-3009-4b1a-a698-yyyyyyyy)
+    📋 Found policy: DEV (07922ea1-3aeb-48fa-b910-c28fxxxxxxxx)
+    📋 Found policy: PROD (c501c960-3009-4b1a-a698-db69yyyyyyyy)
     🧪 DEV policy identified: DEV
     🏭 PROD policy identified: PROD
     🔗 Analyzing 28 policy associations...
-✅ Security Hub is optimally configured for consolidated controls
-✅ Consolidated controls enabled in all 2 regions
-✅ Auto-enable controls correctly disabled (manual control selection)
-✅ Finding aggregation configured to main region (eu-north-1)
-✅ 2 control policies with 28 organizational assignments
-✅ PROD and DEV control policies identified
+
+🔍 Checking for Security Hub hubs in unexpected regions...
+    Checking 15 regions outside configuration...
+    ⚠️  Anomalous Security Hub in eu-central-1: Hub is active
+       Hub ARN: arn:aws:securityhub:eu-central-1:111111111111:hub/default
+       Auto-enable controls: False
+
+⚠️  ANOMALOUS SECURITY HUB HUBS DETECTED:
+Security Hub hubs are active in regions outside your configuration:
+  • eu-central-1: Hub is active (not in your regions list)
+
+ANOMALY RECOMMENDATIONS:
+  • Review: Determine if these hubs are intentional or configuration drift
+  • Recommended: Disable Security Hub in these regions to control costs
+  • Note: Adding regions to OpenSecOps requires full system redeployment
+  Cost Impact: Security Hub generates charges per region and per finding
+⚠️  Security Hub configuration needs optimization:
+  • Review anomalous hubs in 1 unexpected region(s)
+    (Hubs outside configured regions may generate unexpected costs)
 ✅ Security Hub completed successfully
 
 ============================================================
@@ -478,10 +499,12 @@ Enabled: No
 Regions: ['eu-north-1', 'us-east-1']
 Admin Account: 111111111111
 Security Account: 222222222222
-Organization ID: o-01234abcde
+Organization ID: 0-xxxxxxxxxx
 Dry Run: False
 Verbose: True
 Detective is disabled - checking for active resources to deactivate
+   🔍 Checking all AWS regions for spurious Detective activation...
+    Checking 17 regions outside configuration...
    ✅ Detective is not delegated or active - no cleanup needed
 ✅ Detective completed successfully
 
@@ -492,7 +515,7 @@ Enabled: No
 Regions: ['eu-north-1', 'us-east-1']
 Admin Account: 111111111111
 Security Account: 222222222222
-Organization ID: o-01234abcde
+Organization ID: 0-xxxxxxxxxx
 Dry Run: False
 Verbose: True
 Inspector is disabled - checking for active resources to deactivate
@@ -510,7 +533,7 @@ Security Hub: ✅ SUCCESS
 Detective: ✅ SUCCESS
 Inspector: ✅ SUCCESS
 
-✅ All services processed successfully!
+✅ All services processed successfully
 ```
 
 ## Testing

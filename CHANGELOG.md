@@ -1,5 +1,8 @@
 # Change Log
 
+## v0.1.14
+    * Updated README documentation for improved clarity and accuracy
+
 ## v0.1.13
     * Removed unnecessary emojis from output strings, keeping only essential status indicators (checkmarks, warning triangles, red crosses)
     * Removed preaching about security posture choices - now reports facts without recommendations on S3 data events and malware protection
