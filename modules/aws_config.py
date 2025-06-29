@@ -41,10 +41,49 @@ def setup_aws_config(enabled, params, dry_run, verbose):
             printc(RED, "")
             printc(RED, "Config setup SKIPPED due to enabled=No parameter.")
             printc(RED, "🚨" * 20)
+            
+            # Check for spurious AWS Config activations in ALL regions (since service is disabled)
+            regions = params['regions']
+            admin_account = params['admin_account']
+            security_account = params['security_account']
+            
+            if verbose:
+                printc(GRAY, f"\n🔍 Checking all AWS regions for spurious AWS Config activation...")
+            
+            # Pass empty list as expected_regions so ALL regions are checked
+            anomalous_regions = check_anomalous_config_regions([], admin_account, security_account, verbose)
+            
+            if anomalous_regions:
+                printc(YELLOW, f"\n⚠️  SPURIOUS AWS CONFIG ACTIVATION DETECTED:")
+                printc(YELLOW, f"AWS Config recorders found in unexpected regions:")
+                total_recorders = sum(anomaly['recorder_count'] for anomaly in anomalous_regions)
+                printc(YELLOW, f"")
+                printc(YELLOW, f"Current spurious AWS Config resources:")
+                printc(YELLOW, f"  • {total_recorders} recorder(s) across {len(anomalous_regions)} unexpected region(s)")
+                for anomaly in anomalous_regions:
+                    region = anomaly['region']
+                    recorder_count = anomaly['recorder_count']
+                    printc(YELLOW, f"    📍 {region}: {recorder_count} recorder(s) active")
+                    for recorder_detail in anomaly['recorder_details']:
+                        recorder_name = recorder_detail['recorder_name']
+                        recording_enabled = "enabled" if recorder_detail['recording_enabled'] else "disabled"
+                        global_resources = "with global" if recorder_detail['include_global_resources'] else "local only"
+                        printc(YELLOW, f"      📝 Recorder {recorder_name}: {recording_enabled} ({global_resources})")
+                printc(YELLOW, f"")
+                printc(YELLOW, f"📋 SPURIOUS ACTIVATION RECOMMENDATIONS:")
+                printc(YELLOW, f"  • Review: These recorders may be configuration drift or forgotten resources")
+                printc(YELLOW, f"  • Recommended: Disable AWS Config recorders in these regions to control costs")
+                printc(YELLOW, f"  • Note: AWS Config generates storage costs per region and per rule evaluation")
+            else:
+                if verbose:
+                    printc(GRAY, f"   ✅ AWS Config is not active in any region - no cleanup needed")
+            
             return True
         
         # enabled == 'Yes' - proceed with Config setup/verification
         regions = params['regions']
+        admin_account = params['admin_account']
+        security_account = params['security_account']
         main_region = regions[0]
         other_regions = regions[1:] if len(regions) > 1 else []
         
@@ -72,6 +111,27 @@ def setup_aws_config(enabled, params, dry_run, verbose):
                 any_changes_needed = True
                 if verbose:
                     printc(YELLOW, f"  ⚠️  Config needs changes in {region}")
+        
+        # Step 2: Check for anomalous AWS Config recorders in unexpected regions
+        if verbose:
+            printc(GRAY, f"\n🔍 Checking for AWS Config recorders in unexpected regions...")
+        
+        anomalous_regions = check_anomalous_config_regions(regions, admin_account, security_account, verbose)
+        
+        if anomalous_regions:
+            any_changes_needed = True  # Anomalous regions require attention
+            printc(YELLOW, f"\n⚠️  ANOMALOUS AWS CONFIG RECORDERS DETECTED:")
+            printc(YELLOW, f"AWS Config recorders are active in regions outside your configuration:")
+            for anomaly in anomalous_regions:
+                region = anomaly['region']
+                recorder_count = anomaly['recorder_count']
+                printc(YELLOW, f"  • {region}: {recorder_count} recorder(s) active (not in your regions list)")
+            printc(YELLOW, f"")
+            printc(YELLOW, f"📋 ANOMALY RECOMMENDATIONS:")
+            printc(YELLOW, f"  • Review: Determine if these recorders are intentional or configuration drift")
+            printc(YELLOW, f"  • Recommended: Disable AWS Config recorders in these regions to control costs")
+            printc(YELLOW, f"  • Note: Adding regions to OpenSecOps requires full system redeployment")
+            printc(YELLOW, f"  💰 Cost Impact: AWS Config generates storage costs per region and per rule evaluation")
         
         # Report findings and take action
         if not any_changes_needed:
@@ -289,3 +349,99 @@ def check_config_in_region(region, is_main_region, verbose=False):
             printc(RED, f"    ❌ {error_msg}")
     
     return status
+
+def check_anomalous_config_regions(expected_regions, admin_account, security_account, verbose=False):
+    """
+    Check for AWS Config configuration recorders active in regions outside the expected list.
+    
+    This detects configuration drift where AWS Config was enabled in regions
+    not included in the current setup, which could generate unexpected costs.
+    
+    Returns list of anomalous regions with configuration recorder details.
+    """
+    import boto3
+    from botocore.exceptions import ClientError
+    
+    anomalous_regions = []
+    
+    try:
+        # Get all AWS regions to check for anomalous configuration recorders
+        ec2_client = boto3.client('ec2', region_name=expected_regions[0] if expected_regions else 'us-east-1')
+        regions_response = ec2_client.describe_regions()
+        all_regions = [region['RegionName'] for region in regions_response['Regions']]
+        
+        # Check regions that are NOT in our expected list
+        unexpected_regions = [region for region in all_regions if region not in expected_regions]
+        
+        if verbose:
+            printc(GRAY, f"    Checking {len(unexpected_regions)} regions outside configuration...")
+        
+        for region in unexpected_regions:
+            try:
+                config_client = boto3.client('config', region_name=region)
+                
+                # Check if there are any configuration recorders in this region
+                recorders_response = config_client.describe_configuration_recorders()
+                recorders = recorders_response.get('ConfigurationRecorders', [])
+                
+                recorder_details = []
+                for recorder in recorders:
+                    try:
+                        # Get recording status for this recorder
+                        status_response = config_client.describe_configuration_recorder_status(
+                            ConfigurationRecorderNames=[recorder['name']]
+                        )
+                        recorder_status = status_response.get('ConfigurationRecordersStatus', [])
+                        recording_enabled = False
+                        if recorder_status:
+                            recording_enabled = recorder_status[0].get('recording', False)
+                        
+                        recorder_details.append({
+                            'recorder_name': recorder['name'],
+                            'recording_enabled': recording_enabled,
+                            'recording_mode': recorder.get('recordingMode', {}).get('recordingModeOverrides', []),
+                            'include_global_resources': recorder.get('recordingGroup', {}).get('includeGlobalResourceTypes', False)
+                        })
+                    except ClientError as e:
+                        if verbose:
+                            printc(GRAY, f"    (Could not get status for recorder {recorder['name']}: {str(e)})")
+                        recorder_details.append({
+                            'recorder_name': recorder['name'],
+                            'recording_enabled': False,
+                            'recording_mode': 'Unknown',
+                            'include_global_resources': False
+                        })
+                
+                if recorder_details:
+                    anomalous_regions.append({
+                        'region': region,
+                        'recorder_count': len(recorder_details),
+                        'recorder_details': recorder_details
+                    })
+                    
+                    if verbose:
+                        printc(YELLOW, f"    ⚠️  Anomalous Config in {region}: {len(recorder_details)} recorder(s)")
+                        for detail in recorder_details:
+                            status = "enabled" if detail['recording_enabled'] else "disabled"
+                            global_resources = "with global" if detail['include_global_resources'] else "local only"
+                            printc(YELLOW, f"       Recorder {detail['recorder_name']}: {status} ({global_resources})")
+                            
+            except ClientError as e:
+                # Don't show common "service not available" errors
+                if 'Could not connect to the endpoint URL' not in str(e) and 'UnsupportedOperation' not in str(e):
+                    if verbose:
+                        printc(GRAY, f"    (Skipping {region}: {str(e)})")
+                continue
+            except Exception as e:
+                # Don't show common connectivity errors
+                if 'Could not connect to the endpoint URL' not in str(e):
+                    if verbose:
+                        printc(GRAY, f"    (Error checking {region}: {str(e)})")
+                continue
+        
+        return anomalous_regions
+        
+    except Exception as e:
+        if verbose:
+            printc(GRAY, f"    ⚠️  Anomaly check failed: {str(e)}")
+        return []

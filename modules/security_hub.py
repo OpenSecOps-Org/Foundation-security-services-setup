@@ -76,8 +76,27 @@ def setup_security_hub(enabled, params, dry_run, verbose):
                     printc(GRAY, "📋 Analyzing control policies...")
                 control_policies = check_control_policies(regions, admin_account, security_account, cross_account_role, verbose)
             
+            # Step 2: Check for anomalous Security Hub hubs in unexpected regions
+            if verbose:
+                printc(GRAY, f"\n🔍 Checking for Security Hub hubs in unexpected regions...")
+            
+            anomalous_regions = check_anomalous_securityhub_regions(regions, admin_account, security_account, verbose)
+            
+            if anomalous_regions:
+                printc(YELLOW, f"\n⚠️  ANOMALOUS SECURITY HUB HUBS DETECTED:")
+                printc(YELLOW, f"Security Hub hubs are active in regions outside your configuration:")
+                for anomaly in anomalous_regions:
+                    region = anomaly['region']
+                    printc(YELLOW, f"  • {region}: Hub is active (not in your regions list)")
+                printc(YELLOW, f"")
+                printc(YELLOW, f"📋 ANOMALY RECOMMENDATIONS:")
+                printc(YELLOW, f"  • Review: Determine if these hubs are intentional or configuration drift")
+                printc(YELLOW, f"  • Recommended: Disable Security Hub in these regions to control costs")
+                printc(YELLOW, f"  • Note: Adding regions to OpenSecOps requires full system redeployment")
+                printc(YELLOW, f"  💰 Cost Impact: Security Hub generates charges per region and per finding")
+            
             # Generate comprehensive recommendations
-            generate_security_hub_recommendations(delegation_status, overall_config, control_policies, params, dry_run, verbose)
+            generate_security_hub_recommendations(delegation_status, overall_config, control_policies, params, dry_run, verbose, anomalous_regions)
             
         else:
             # Security Hub disabled - show deactivation analysis
@@ -408,7 +427,7 @@ def check_control_policies(regions: list, admin_account: str, security_account: 
     return policies_data
 
 
-def generate_security_hub_recommendations(delegation_status: dict, overall_config: dict, control_policies: dict, params: dict, dry_run: bool, verbose: bool):
+def generate_security_hub_recommendations(delegation_status: dict, overall_config: dict, control_policies: dict, params: dict, dry_run: bool, verbose: bool, anomalous_regions: list = None):
     """Generate comprehensive Security Hub recommendations based on current configuration."""
     
     # Extract key information
@@ -427,7 +446,9 @@ def generate_security_hub_recommendations(delegation_status: dict, overall_confi
     
     # Generate status report
     if is_delegated and enabled_regions:
-        if len(consolidated_controls_regions) == len(enabled_regions) and not auto_enable_issues and findings_aggregated:
+        # Consider anomalous regions in perfect configuration check
+        has_anomalous_regions = anomalous_regions and len(anomalous_regions) > 0
+        if len(consolidated_controls_regions) == len(enabled_regions) and not auto_enable_issues and findings_aggregated and not has_anomalous_regions:
             # Perfect configuration
             printc(GREEN, "✅ Security Hub is optimally configured for consolidated controls")
             printc(GREEN, f"✅ Consolidated controls enabled in all {len(enabled_regions)} regions")
@@ -463,6 +484,10 @@ def generate_security_hub_recommendations(delegation_status: dict, overall_confi
             if not findings_aggregated:
                 printc(YELLOW, f"  • Configure finding aggregation to main region ({main_region})")
                 printc(YELLOW, "    (All findings from other regions should flow to main region)")
+            
+            if has_anomalous_regions:
+                printc(YELLOW, f"  • Review anomalous hubs in {len(anomalous_regions)} unexpected region(s)")
+                printc(YELLOW, "    (Hubs outside configured regions may generate unexpected costs)")
                 
     elif is_delegated:
         printc(YELLOW, "⚠️  Security Hub delegated but not enabled in all regions")
@@ -475,7 +500,7 @@ def generate_security_hub_recommendations(delegation_status: dict, overall_confi
         printc(YELLOW, f"  • Delegate Security Hub administration to account {params['security_account']}")
     
     # Show what would be done in dry-run mode
-    if dry_run and (not is_delegated or len(enabled_regions) < len(regions) or auto_enable_issues or not findings_aggregated):
+    if dry_run and (not is_delegated or len(enabled_regions) < len(regions) or auto_enable_issues or not findings_aggregated or has_anomalous_regions):
         printc(LIGHT_BLUE, "\n🔮 DRY RUN - Actions that would be taken:")
         
         if not is_delegated:
@@ -536,4 +561,108 @@ def show_security_hub_deactivation_analysis(admin_account: str, security_account
         printc(GRAY, "  8. Remove delegation from security account")
         
     else:
-        printc(GREEN, "✅ Security Hub is not currently configured - no deactivation needed")
+        # Check for spurious Security Hub activations in ALL regions (since service is disabled)
+        if verbose:
+            printc(GRAY, f"\n🔍 Checking all AWS regions for spurious Security Hub activation...")
+        
+        # Pass empty list as expected_regions so ALL regions are checked
+        anomalous_regions = check_anomalous_securityhub_regions([], admin_account, security_account, verbose)
+        
+        if anomalous_regions:
+            printc(YELLOW, f"\n⚠️  SPURIOUS SECURITY HUB ACTIVATION DETECTED:")
+            printc(YELLOW, f"Security Hub hubs found in unexpected regions:")
+            printc(YELLOW, f"")
+            printc(YELLOW, f"Current spurious Security Hub resources:")
+            printc(YELLOW, f"  • Hubs active across {len(anomalous_regions)} unexpected region(s)")
+            for anomaly in anomalous_regions:
+                region = anomaly['region']
+                hub_details = anomaly['hub_details']
+                auto_enable = "auto-enable" if hub_details.get('auto_enable_controls', False) else "manual controls"
+                printc(YELLOW, f"    📍 {region}: Hub active ({auto_enable})")
+            printc(YELLOW, f"")
+            printc(YELLOW, f"📋 SPURIOUS ACTIVATION RECOMMENDATIONS:")
+            printc(YELLOW, f"  • Review: These hubs may be configuration drift or forgotten resources")
+            printc(YELLOW, f"  • Recommended: Disable Security Hub in these regions to control costs")
+            printc(YELLOW, f"  • Note: Security Hub generates charges per region and per finding")
+        else:
+            printc(GREEN, "✅ Security Hub is not currently configured - no deactivation needed")
+
+def check_anomalous_securityhub_regions(expected_regions, admin_account, security_account, verbose=False):
+    """
+    Check for Security Hub hubs active in regions outside the expected list.
+    
+    This detects configuration drift where Security Hub was enabled in regions
+    not included in the current setup, which could generate unexpected costs.
+    
+    Returns list of anomalous regions with hub details.
+    """
+    import boto3
+    from botocore.exceptions import ClientError
+    
+    anomalous_regions = []
+    
+    try:
+        # Get all AWS regions to check for anomalous hubs
+        ec2_client = boto3.client('ec2', region_name=expected_regions[0] if expected_regions else 'us-east-1')
+        regions_response = ec2_client.describe_regions()
+        all_regions = [region['RegionName'] for region in regions_response['Regions']]
+        
+        # Check regions that are NOT in our expected list
+        unexpected_regions = [region for region in all_regions if region not in expected_regions]
+        
+        if verbose:
+            printc(GRAY, f"    Checking {len(unexpected_regions)} regions outside configuration...")
+        
+        for region in unexpected_regions:
+            try:
+                securityhub_client = boto3.client('securityhub', region_name=region)
+                
+                # Check if Security Hub is enabled in this region
+                try:
+                    hub_info = securityhub_client.describe_hub()
+                    
+                    # If we got here, Security Hub is active
+                    anomalous_regions.append({
+                        'region': region,
+                        'hub_active': True,
+                        'hub_details': {
+                            'hub_arn': hub_info.get('HubArn', 'Unknown'),
+                            'subscribed_at': hub_info.get('SubscribedAt', 'Unknown'),
+                            'auto_enable_controls': hub_info.get('AutoEnableControls', False)
+                        }
+                    })
+                    
+                    if verbose:
+                        printc(YELLOW, f"    ⚠️  Anomalous Security Hub in {region}: Hub is active")
+                        printc(YELLOW, f"       Hub ARN: {hub_info.get('HubArn', 'Unknown')}")
+                        printc(YELLOW, f"       Auto-enable controls: {hub_info.get('AutoEnableControls', False)}")
+                        
+                except ClientError as e:
+                    # Security Hub not enabled in this region - this is expected
+                    if 'InvalidAccessException' in str(e) or 'ResourceNotFoundException' in str(e):
+                        # This is normal - Security Hub not enabled in this region
+                        continue
+                    else:
+                        if verbose:
+                            printc(GRAY, f"    (Could not check Security Hub in {region}: {str(e)})")
+                        continue
+                            
+            except ClientError as e:
+                # Don't show common "service not available" errors
+                if 'Could not connect to the endpoint URL' not in str(e) and 'UnsupportedOperation' not in str(e):
+                    if verbose:
+                        printc(GRAY, f"    (Skipping {region}: {str(e)})")
+                continue
+            except Exception as e:
+                # Don't show common connectivity errors
+                if 'Could not connect to the endpoint URL' not in str(e):
+                    if verbose:
+                        printc(GRAY, f"    (Error checking {region}: {str(e)})")
+                continue
+        
+        return anomalous_regions
+        
+    except Exception as e:
+        if verbose:
+            printc(GRAY, f"    ⚠️  Anomaly check failed: {str(e)}")
+        return []

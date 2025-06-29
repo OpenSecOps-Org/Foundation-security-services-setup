@@ -40,6 +40,42 @@ def setup_guardduty(enabled, params, dry_run, verbose):
             printc(RED, "")
             printc(RED, "GuardDuty setup SKIPPED due to enabled=No parameter.")
             printc(RED, "🚨" * 15)
+            
+            # Check for spurious GuardDuty activations in ALL regions (since service is disabled)
+            regions = params['regions']
+            admin_account = params['admin_account']
+            security_account = params['security_account']
+            
+            if verbose:
+                printc(GRAY, f"\n🔍 Checking all AWS regions for spurious GuardDuty activation...")
+            
+            # Pass empty list as expected_regions so ALL regions are checked
+            anomalous_regions = check_anomalous_guardduty_regions([], admin_account, security_account, verbose)
+            
+            if anomalous_regions:
+                printc(YELLOW, f"\n⚠️  SPURIOUS GUARDDUTY ACTIVATION DETECTED:")
+                printc(YELLOW, f"GuardDuty detectors found in unexpected regions:")
+                total_detectors = sum(anomaly['detector_count'] for anomaly in anomalous_regions)
+                printc(YELLOW, f"")
+                printc(YELLOW, f"Current spurious GuardDuty resources:")
+                printc(YELLOW, f"  • {total_detectors} detector(s) across {len(anomalous_regions)} unexpected region(s)")
+                for anomaly in anomalous_regions:
+                    region = anomaly['region']
+                    detector_count = anomaly['detector_count']
+                    printc(YELLOW, f"    📍 {region}: {detector_count} detector(s) enabled")
+                    for detector_detail in anomaly['detector_details']:
+                        status = detector_detail['status']
+                        frequency = detector_detail['finding_frequency']
+                        printc(YELLOW, f"      🔍 Detector: {status} ({frequency})")
+                printc(YELLOW, f"")
+                printc(YELLOW, f"📋 SPURIOUS ACTIVATION RECOMMENDATIONS:")
+                printc(YELLOW, f"  • Review: These detectors may be configuration drift or forgotten resources")
+                printc(YELLOW, f"  • Recommended: Disable GuardDuty detectors in these regions to control costs")
+                printc(YELLOW, f"  • Note: GuardDuty generates charges per region and per finding")
+            else:
+                if verbose:
+                    printc(GRAY, f"   ✅ GuardDuty is not active in any region - no cleanup needed")
+            
             return True
         
         # enabled == 'Yes' - proceed with GuardDuty setup/verification
@@ -77,6 +113,27 @@ def setup_guardduty(enabled, params, dry_run, verbose):
                         printc(YELLOW, f"    • {issue}")
                     if len(region_status['issues']) > 2:
                         printc(YELLOW, f"    • ... and {len(region_status['issues']) - 2} more (use --verbose for details)")
+        
+        # Step 2: Check for anomalous GuardDuty detectors in unexpected regions
+        if verbose:
+            printc(GRAY, f"\n🔍 Checking for GuardDuty detectors in unexpected regions...")
+        
+        anomalous_regions = check_anomalous_guardduty_regions(regions, admin_account, security_account, verbose)
+        
+        if anomalous_regions:
+            any_changes_needed = True  # Anomalous regions require attention
+            printc(YELLOW, f"\n⚠️  ANOMALOUS GUARDDUTY DETECTORS DETECTED:")
+            printc(YELLOW, f"GuardDuty detectors are active in regions outside your configuration:")
+            for anomaly in anomalous_regions:
+                region = anomaly['region']
+                detector_count = anomaly['detector_count']
+                printc(YELLOW, f"  • {region}: {detector_count} detector(s) enabled (not in your regions list)")
+            printc(YELLOW, f"")
+            printc(YELLOW, f"📋 ANOMALY RECOMMENDATIONS:")
+            printc(YELLOW, f"  • Review: Determine if these detectors are intentional or configuration drift")
+            printc(YELLOW, f"  • Recommended: Disable GuardDuty detectors in these regions to control costs")
+            printc(YELLOW, f"  • Note: Adding regions to OpenSecOps requires full system redeployment")
+            printc(YELLOW, f"  💰 Cost Impact: GuardDuty generates charges per region and per finding")
         
         # Report findings and take action
         if not any_changes_needed:
@@ -404,3 +461,87 @@ def check_guardduty_in_region(region, admin_account, security_account, cross_acc
         status['guardduty_details'].append(f"❌ General error: {str(e)}")
     
     return status
+
+def check_anomalous_guardduty_regions(expected_regions, admin_account, security_account, verbose=False):
+    """
+    Check for GuardDuty detectors active in regions outside the expected list.
+    
+    This detects configuration drift where GuardDuty was enabled in regions
+    not included in the current setup, which could generate unexpected costs.
+    
+    Returns list of anomalous regions with detector details.
+    """
+    import boto3
+    from botocore.exceptions import ClientError
+    
+    anomalous_regions = []
+    
+    try:
+        # Get all AWS regions to check for anomalous detectors
+        ec2_client = boto3.client('ec2', region_name=expected_regions[0] if expected_regions else 'us-east-1')
+        regions_response = ec2_client.describe_regions()
+        all_regions = [region['RegionName'] for region in regions_response['Regions']]
+        
+        # Check regions that are NOT in our expected list
+        unexpected_regions = [region for region in all_regions if region not in expected_regions]
+        
+        if verbose:
+            printc(GRAY, f"    Checking {len(unexpected_regions)} regions outside configuration...")
+        
+        for region in unexpected_regions:
+            try:
+                guardduty_client = boto3.client('guardduty', region_name=region)
+                
+                # Check if there are any detectors in this region
+                detectors_response = guardduty_client.list_detectors()
+                detector_ids = detectors_response.get('DetectorIds', [])
+                
+                detector_details = []
+                for detector_id in detector_ids:
+                    try:
+                        detector_info = guardduty_client.get_detector(DetectorId=detector_id)
+                        detector_details.append({
+                            'detector_id': detector_id,
+                            'status': detector_info.get('Status', 'Unknown'),
+                            'finding_frequency': detector_info.get('FindingPublishingFrequency', 'Unknown')
+                        })
+                    except ClientError as e:
+                        if verbose:
+                            printc(GRAY, f"    (Could not get detector details for {detector_id}: {str(e)})")
+                        detector_details.append({
+                            'detector_id': detector_id,
+                            'status': 'Unknown',
+                            'finding_frequency': 'Unknown'
+                        })
+                
+                if detector_details:
+                    anomalous_regions.append({
+                        'region': region,
+                        'detector_count': len(detector_details),
+                        'detector_details': detector_details
+                    })
+                    
+                    if verbose:
+                        printc(YELLOW, f"    ⚠️  Anomalous detectors in {region}: {len(detector_details)} detector(s)")
+                        for detail in detector_details:
+                            printc(YELLOW, f"       Detector {detail['detector_id']}: {detail['status']} ({detail['finding_frequency']})")
+                            
+            except ClientError as e:
+                # Don't show common "service not available" errors
+                if 'Could not connect to the endpoint URL' not in str(e) and 'UnsupportedOperation' not in str(e):
+                    if verbose:
+                        printc(GRAY, f"    (Skipping {region}: {str(e)})")
+                continue
+            except Exception as e:
+                # Don't show common connectivity errors
+                if 'Could not connect to the endpoint URL' not in str(e):
+                    if verbose:
+                        printc(GRAY, f"    (Error checking {region}: {str(e)})")
+                continue
+        
+        return anomalous_regions
+        
+    except Exception as e:
+        if verbose:
+            printc(GRAY, f"    ⚠️  Anomaly check failed: {str(e)}")
+        return []

@@ -569,12 +569,16 @@ def check_anomalous_inspector_regions(expected_regions, admin_account, security_
                             printc(YELLOW, f"       Account {detail['account_id']}: {detail['resource_type']} = {detail['status']}")
                             
             except ClientError as e:
-                if verbose:
-                    printc(GRAY, f"    (Skipping {region}: {str(e)})")
+                # Don't show common "service not available" errors
+                if 'Could not connect to the endpoint URL' not in str(e) and 'UnsupportedOperation' not in str(e):
+                    if verbose:
+                        printc(GRAY, f"    (Skipping {region}: {str(e)})")
                 continue
             except Exception as e:
-                if verbose:
-                    printc(GRAY, f"    (Error checking {region}: {str(e)})")
+                # Don't show common connectivity errors
+                if 'Could not connect to the endpoint URL' not in str(e):
+                    if verbose:
+                        printc(GRAY, f"    (Error checking {region}: {str(e)})")
                 continue
         
         return anomalous_regions

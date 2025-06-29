@@ -2,7 +2,7 @@
 
 **Automated AWS security service configuration for infrastructure engineers**
 
-> **⚠️ PRE-RELEASE VERSION (v0.1.0)**: This version provides comprehensive read-only analysis and discovery of AWS security services. It does not yet mutate AWS resources. Full automation capabilities coming in v1.0.0.
+> **⚠️ PRE-RELEASE VERSION**: This version provides comprehensive read-only analysis and discovery of AWS security services. It does not yet mutate AWS resources. Full automation capabilities coming in v1.0.0.
 
 ## The Problem
 

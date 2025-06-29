@@ -676,3 +676,108 @@ class TestPrintcUtilityFunction:
         call_kwargs = mock_print.call_args[1]
         assert 'end' in call_kwargs, "Should pass through end parameter"
         assert 'flush' in call_kwargs, "Should pass through flush parameter"
+
+
+class TestDetectiveAnomalousRegionDetection:
+    """
+    SPECIFICATION: Detective anomalous region detection
+    
+    The check_anomalous_detective_regions function should:
+    1. Detect Detective investigation graphs in regions outside the expected list
+    2. Return list of anomalous regions with graph details
+    3. Handle API errors gracefully
+    4. Provide cost-impact warnings for unexpected activations
+    """
+    
+    @patch('modules.detective.printc')
+    @patch('modules.detective.check_anomalous_detective_regions')
+    def test_when_anomalous_graphs_found_then_show_cost_warnings(self, mock_anomaly_check, mock_print, mock_aws_services):
+        """
+        GIVEN: Detective investigation graphs exist in regions outside expected configuration
+        WHEN: setup_detective detects anomalous regions
+        THEN: Should warn about unexpected costs and configuration drift
+        """
+        # Arrange - Mock anomalous regions found
+        mock_anomaly_check.return_value = [
+            {
+                'region': 'eu-west-2',
+                'graph_count': 1,
+                'graph_details': [
+                    {
+                        'graph_arn': 'arn:aws:detective:eu-west-2:123456789012:graph:example123',
+                        'created_time': '2024-01-15T10:30:00.000Z',
+                        'member_count': 5
+                    }
+                ]
+            },
+            {
+                'region': 'ap-northeast-1',
+                'graph_count': 1,
+                'graph_details': [
+                    {
+                        'graph_arn': 'arn:aws:detective:ap-northeast-1:123456789012:graph:example456',
+                        'created_time': '2024-02-01T08:15:00.000Z',
+                        'member_count': 0
+                    }
+                ]
+            }
+        ]
+        
+        params = create_test_params()
+        
+        # Act
+        result = setup_detective(enabled='Yes', params=params, dry_run=False, verbose=True)
+        
+        # Assert
+        assert result is True, "Should handle anomalous graphs gracefully"
+        
+        # Check that anomaly warnings were displayed
+        all_output = ' '.join([str(call_args) for call_args in mock_print.call_args_list])
+        anomaly_mentioned = any(phrase in all_output.lower() for phrase in [
+            'anomalous', 'unexpected', 'cost', 'configuration drift'
+        ])
+        assert anomaly_mentioned, f"Should show anomalous graph warnings. Got: {all_output}"
+    
+    @patch('modules.detective.printc')
+    @patch('modules.detective.check_anomalous_detective_regions')
+    def test_when_detective_disabled_but_spurious_activations_found_then_warn(self, mock_anomaly_check, mock_print, mock_aws_services):
+        """
+        GIVEN: Detective is disabled but spurious graphs exist in unexpected regions
+        WHEN: setup_detective is called with enabled='No'
+        THEN: Should check all regions and warn about spurious activations
+        """
+        # Arrange - Mock spurious activations found
+        mock_anomaly_check.return_value = [
+            {
+                'region': 'ap-southeast-1',
+                'graph_count': 1,
+                'graph_details': [
+                    {
+                        'graph_arn': 'arn:aws:detective:ap-southeast-1:123456789012:graph:spurious123',
+                        'created_time': '2024-01-15T10:30:00.000Z',
+                        'member_count': 3
+                    }
+                ]
+            }
+        ]
+        
+        params = create_test_params()
+        
+        # Act
+        result = setup_detective(enabled='No', params=params, dry_run=False, verbose=True)
+        
+        # Assert
+        assert result is True, "Should handle spurious activations when disabled"
+        
+        # Verify anomaly check was called with empty list (all regions)
+        mock_anomaly_check.assert_called_once()
+        call_args = mock_anomaly_check.call_args[0]
+        expected_regions = call_args[0]
+        assert expected_regions == [], "Should check all regions when disabled (empty expected_regions list)"
+        
+        # Check that spurious activation warnings were displayed
+        all_output = ' '.join([str(call_args) for call_args in mock_print.call_args_list])
+        spurious_mentioned = any(phrase in all_output.lower() for phrase in [
+            'spurious', 'unexpected regions', 'configuration drift'
+        ])
+        assert spurious_mentioned, f"Should show spurious activation warnings when disabled. Got: {all_output}"

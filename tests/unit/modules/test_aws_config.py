@@ -664,3 +664,66 @@ class TestAWSConfigConfigurationScenarios:
         
         # Specification: Function should handle both verbose and non-verbose modes
         # Integration tests validate the actual output behavior
+
+
+class TestAwsConfigAnomalousRegionDetection:
+    """
+    SPECIFICATION: AWS Config anomalous region detection
+    
+    The check_anomalous_config_regions function should:
+    1. Detect AWS Config configuration recorders in regions outside the expected list
+    2. Return list of anomalous regions with configuration details
+    3. Handle API errors gracefully
+    4. Provide cost-impact warnings for unexpected activations
+    """
+    
+    @patch('modules.aws_config.printc')
+    @patch('modules.aws_config.check_anomalous_config_regions')
+    def test_when_anomalous_config_found_then_show_cost_warnings(self, mock_anomaly_check, mock_print, mock_aws_services):
+        """
+        GIVEN: AWS Config configuration recorders exist in regions outside expected configuration
+        WHEN: setup_aws_config detects anomalous regions
+        THEN: Should warn about unexpected costs and configuration drift
+        """
+        # Arrange - Mock anomalous regions found
+        mock_anomaly_check.return_value = [
+            {
+                'region': 'ap-southeast-2',
+                'recorder_count': 1,
+                'recorder_details': [
+                    {
+                        'recorder_name': 'default',
+                        'recording_enabled': True,
+                        'recording_mode': 'CONTINUOUS',
+                        'include_global_resources': False
+                    }
+                ]
+            },
+            {
+                'region': 'ca-central-1',
+                'recorder_count': 1,
+                'recorder_details': [
+                    {
+                        'recorder_name': 'custom-recorder',
+                        'recording_enabled': True,
+                        'recording_mode': 'DAILY',
+                        'include_global_resources': True
+                    }
+                ]
+            }
+        ]
+        
+        params = create_test_params()
+        
+        # Act
+        result = setup_aws_config(enabled='Yes', params=params, dry_run=False, verbose=True)
+        
+        # Assert
+        assert result is True, "Should handle anomalous config gracefully"
+        
+        # Check that anomaly warnings were displayed
+        all_output = ' '.join([str(call_args) for call_args in mock_print.call_args_list])
+        anomaly_mentioned = any(phrase in all_output.lower() for phrase in [
+            'anomalous', 'unexpected', 'cost', 'configuration drift'
+        ])
+        assert anomaly_mentioned, f"Should show anomalous config warnings. Got: {all_output}"

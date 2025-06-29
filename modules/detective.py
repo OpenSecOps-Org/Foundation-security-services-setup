@@ -116,8 +116,35 @@ def setup_detective(enabled, params, dry_run, verbose):
                 printc(YELLOW, f"Since Detective is disabled, consider removing the delegation to clean up")
                 printc(YELLOW, f"This will remove Detective administrative permissions from the Security account")
             else:
+                # Check for spurious Detective activations in ALL regions (since service is disabled)
                 if verbose:
-                    printc(GRAY, f"   ✅ Detective is not delegated or active - no cleanup needed")
+                    printc(GRAY, f"   🔍 Checking all AWS regions for spurious Detective activation...")
+                
+                # Pass empty list as expected_regions so ALL regions are checked
+                anomalous_regions = check_anomalous_detective_regions([], admin_account, security_account, verbose)
+                
+                if anomalous_regions:
+                    printc(YELLOW, f"\n⚠️  SPURIOUS DETECTIVE ACTIVATION DETECTED:")
+                    printc(YELLOW, f"Detective graphs found in unexpected regions:")
+                    total_graphs = sum(anomaly['graph_count'] for anomaly in anomalous_regions)
+                    printc(YELLOW, f"")
+                    printc(YELLOW, f"Current spurious Detective resources:")
+                    printc(YELLOW, f"  • {total_graphs} investigation graph(s) across {len(anomalous_regions)} unexpected region(s)")
+                    for anomaly in anomalous_regions:
+                        region = anomaly['region']
+                        graph_count = anomaly['graph_count']
+                        printc(YELLOW, f"    📍 {region}: {graph_count} graph(s) active")
+                        for graph_detail in anomaly['graph_details']:
+                            member_count = graph_detail['member_count']
+                            printc(YELLOW, f"      📊 Graph: {member_count} member(s)")
+                    printc(YELLOW, f"")
+                    printc(YELLOW, f"📋 SPURIOUS ACTIVATION RECOMMENDATIONS:")
+                    printc(YELLOW, f"  • Review: These graphs may be configuration drift or forgotten resources")
+                    printc(YELLOW, f"  • Recommended: Disable Detective graphs in these regions to control costs")
+                    printc(YELLOW, f"  • Note: Detective generates charges based on data ingestion volume per region")
+                else:
+                    if verbose:
+                        printc(GRAY, f"   ✅ Detective is not delegated or active - no cleanup needed")
             
             return True
         
@@ -176,6 +203,27 @@ def setup_detective(enabled, params, dry_run, verbose):
                         printc(YELLOW, f"    • {issue}")
                     if len(region_status['issues']) > 2:
                         printc(YELLOW, f"    • ... and {len(region_status['issues']) - 2} more (use --verbose for details)")
+        
+        # Step 2: Check for anomalous Detective graphs in unexpected regions
+        if verbose:
+            printc(GRAY, f"\n🔍 Checking for Detective graphs in unexpected regions...")
+        
+        anomalous_regions = check_anomalous_detective_regions(regions, admin_account, security_account, verbose)
+        
+        if anomalous_regions:
+            any_changes_needed = True  # Anomalous regions require attention
+            printc(YELLOW, f"\n⚠️  ANOMALOUS DETECTIVE GRAPHS DETECTED:")
+            printc(YELLOW, f"Detective investigation graphs are active in regions outside your configuration:")
+            for anomaly in anomalous_regions:
+                region = anomaly['region']
+                graph_count = anomaly['graph_count']
+                printc(YELLOW, f"  • {region}: {graph_count} graph(s) active (not in your regions list)")
+            printc(YELLOW, f"")
+            printc(YELLOW, f"📋 ANOMALY RECOMMENDATIONS:")
+            printc(YELLOW, f"  • Review: Determine if these graphs are intentional or configuration drift")
+            printc(YELLOW, f"  • Recommended: Disable Detective graphs in these regions to control costs")
+            printc(YELLOW, f"  • Note: Adding regions to OpenSecOps requires full system redeployment")
+            printc(YELLOW, f"  💰 Cost Impact: Detective generates charges based on data ingestion volume per region")
         
         # Report findings and take action
         if not any_changes_needed:
@@ -515,3 +563,92 @@ def check_detective_in_region(region, admin_account, security_account, cross_acc
         status['detective_details'].append(f"❌ General error: {str(e)}")
     
     return status
+
+def check_anomalous_detective_regions(expected_regions, admin_account, security_account, verbose=False):
+    """
+    Check for Detective investigation graphs active in regions outside the expected list.
+    
+    This detects configuration drift where Detective was enabled in regions
+    not included in the current setup, which could generate unexpected costs.
+    
+    Returns list of anomalous regions with graph details.
+    """
+    import boto3
+    from botocore.exceptions import ClientError
+    
+    anomalous_regions = []
+    
+    try:
+        # Get all AWS regions to check for anomalous Detective graphs
+        ec2_client = boto3.client('ec2', region_name=expected_regions[0] if expected_regions else 'us-east-1')
+        regions_response = ec2_client.describe_regions()
+        all_regions = [region['RegionName'] for region in regions_response['Regions']]
+        
+        # Check regions that are NOT in our expected list
+        unexpected_regions = [region for region in all_regions if region not in expected_regions]
+        
+        if verbose:
+            printc(GRAY, f"    Checking {len(unexpected_regions)} regions outside configuration...")
+        
+        for region in unexpected_regions:
+            try:
+                detective_client = boto3.client('detective', region_name=region)
+                
+                # Check if there are any Detective graphs in this region
+                graphs_response = detective_client.list_graphs()
+                graphs = graphs_response.get('GraphList', [])
+                
+                graph_details = []
+                for graph in graphs:
+                    try:
+                        # Get member accounts for this graph to check if it's active
+                        members_paginator = detective_client.get_paginator('list_members')
+                        all_members = []
+                        for page in members_paginator.paginate(GraphArn=graph['Arn']):
+                            all_members.extend(page.get('MemberDetails', []))
+                        
+                        graph_details.append({
+                            'graph_arn': graph['Arn'],
+                            'created_time': graph.get('CreatedTime', 'Unknown'),
+                            'member_count': len(all_members)
+                        })
+                    except ClientError as e:
+                        if verbose:
+                            printc(GRAY, f"    (Could not get members for graph {graph['Arn']}: {str(e)})")
+                        graph_details.append({
+                            'graph_arn': graph['Arn'],
+                            'created_time': graph.get('CreatedTime', 'Unknown'),
+                            'member_count': 0
+                        })
+                
+                if graph_details:
+                    anomalous_regions.append({
+                        'region': region,
+                        'graph_count': len(graph_details),
+                        'graph_details': graph_details
+                    })
+                    
+                    if verbose:
+                        printc(YELLOW, f"    ⚠️  Anomalous Detective in {region}: {len(graph_details)} graph(s)")
+                        for detail in graph_details:
+                            printc(YELLOW, f"       Graph {detail['graph_arn'].split('/')[-1]}: {detail['member_count']} members")
+                            
+            except ClientError as e:
+                # Don't show common "service not available" errors
+                if 'Could not connect to the endpoint URL' not in str(e) and 'UnsupportedOperation' not in str(e):
+                    if verbose:
+                        printc(GRAY, f"    (Skipping {region}: {str(e)})")
+                continue
+            except Exception as e:
+                # Don't show common connectivity errors
+                if 'Could not connect to the endpoint URL' not in str(e):
+                    if verbose:
+                        printc(GRAY, f"    (Error checking {region}: {str(e)})")
+                continue
+        
+        return anomalous_regions
+        
+    except Exception as e:
+        if verbose:
+            printc(GRAY, f"    ⚠️  Anomaly check failed: {str(e)}")
+        return []

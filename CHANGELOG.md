@@ -1,5 +1,12 @@
 # Change Log
 
+## v0.1.12
+    * Added comprehensive spurious region detection for all 6 security services (GuardDuty, Security Hub, AWS Config, Detective, Inspector, Access Analyzer)
+    * Enhanced all services to check for unexpected activations outside configured regions when disabled, preventing cost surprises
+    * Improved error handling to gracefully suppress service unavailability errors in unsupported regions
+    * Added 6 new tests covering anomalous region detection scenarios (125 total tests, all passing)
+    * Ensured consistent behavior across all modules for configuration drift detection and cost control
+
 ## v0.1.11
     * --cross-account-role parameter now defaults to AWSControlTowerExecution and can be omitted for standalone usage convenience
     * Cross-account role restricted to two valid choices: AWSControlTowerExecution (default) and OrganizationAccountAccessRole

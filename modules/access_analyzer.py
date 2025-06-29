@@ -41,6 +41,36 @@ def setup_access_analyzer(enabled, params, dry_run, verbose):
             printc(RED, "")
             printc(RED, "Access Analyzer setup SKIPPED due to enabled=No parameter.")
             printc(RED, "🚨" * 15)
+            
+            # Check for spurious Access Analyzer activations in ALL regions (since service is disabled)
+            regions = params['regions']
+            admin_account = params['admin_account']
+            security_account = params['security_account']
+            cross_account_role = params['cross_account_role']
+            
+            if verbose:
+                printc(GRAY, f"\n🔍 Checking all AWS regions for spurious Access Analyzer activation...")
+            
+            # Pass empty list as expected_regions so ALL regions are checked
+            anomalous_regions = detect_anomalous_access_analyzer_regions([], admin_account, security_account, cross_account_role, verbose)
+            
+            if anomalous_regions:
+                printc(YELLOW, f"\n⚠️  SPURIOUS ACCESS ANALYZER ACTIVATION DETECTED:")
+                printc(YELLOW, f"Access Analyzer analyzers found in unexpected regions:")
+                printc(YELLOW, f"")
+                printc(YELLOW, f"Current spurious Access Analyzer resources:")
+                printc(YELLOW, f"  • Analyzers active across {len(anomalous_regions)} unexpected region(s)")
+                for anomalous_region in anomalous_regions:
+                    printc(YELLOW, f"    📍 {anomalous_region}: Has analyzers (not in configured regions)")
+                printc(YELLOW, f"")
+                printc(YELLOW, f"📋 SPURIOUS ACTIVATION RECOMMENDATIONS:")
+                printc(YELLOW, f"  • Review: These analyzers may be configuration drift or forgotten resources")
+                printc(YELLOW, f"  • Recommended: Disable Access Analyzer analyzers in these regions to control costs")
+                printc(YELLOW, f"  • Note: Access Analyzer generates charges per analyzer and finding")
+            else:
+                if verbose:
+                    printc(GRAY, f"   ✅ Access Analyzer is not active in any region - no cleanup needed")
+            
             return True
         
         # enabled == 'Yes' - proceed with Access Analyzer setup/verification
@@ -469,7 +499,8 @@ def detect_anomalous_access_analyzer_regions(expected_regions, admin_account, se
                         all_analyzers.extend(page.get('analyzers', []))
                 except ClientError as e:
                     # Access Analyzer might not be available in all regions
-                    if 'UnsupportedOperation' not in str(e) and 'AccessDenied' not in str(e):
+                    if ('UnsupportedOperation' not in str(e) and 'AccessDenied' not in str(e) 
+                        and 'Could not connect to the endpoint URL' not in str(e)):
                         if verbose:
                             printc(GRAY, f"  ⚠️  Could not check analyzers in {region}: {str(e)}")
                     continue
@@ -483,8 +514,10 @@ def detect_anomalous_access_analyzer_regions(expected_regions, admin_account, se
                         printc(GRAY, f"      Analyzers: {', '.join(analyzer_names)}")
                     
             except Exception as e:
-                if verbose:
-                    printc(GRAY, f"  ⚠️  Error checking region {region}: {str(e)}")
+                # Don't show common connectivity errors
+                if 'Could not connect to the endpoint URL' not in str(e):
+                    if verbose:
+                        printc(GRAY, f"  ⚠️  Error checking region {region}: {str(e)}")
                 continue
         
         if verbose and not anomalous_regions:

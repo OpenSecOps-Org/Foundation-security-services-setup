@@ -412,3 +412,60 @@ class TestPrintcUtilityFunction:
         call_kwargs = mock_print.call_args[1]
         assert 'end' in call_kwargs, "Should pass through end parameter"
         assert 'flush' in call_kwargs, "Should pass through flush parameter"
+
+
+class TestSecurityHubAnomalousRegionDetection:
+    """
+    SPECIFICATION: Security Hub anomalous region detection
+    
+    The check_anomalous_securityhub_regions function should:
+    1. Detect Security Hub hubs active in regions outside the expected list
+    2. Return list of anomalous regions with hub details
+    3. Handle API errors gracefully
+    4. Provide cost-impact warnings for unexpected activations
+    """
+    
+    @patch('modules.security_hub.printc')
+    @patch('modules.security_hub.check_anomalous_securityhub_regions')
+    def test_when_anomalous_hubs_found_then_show_cost_warnings(self, mock_anomaly_check, mock_print, mock_aws_services):
+        """
+        GIVEN: Security Hub hubs exist in regions outside expected configuration
+        WHEN: setup_security_hub detects anomalous regions
+        THEN: Should warn about unexpected costs and configuration drift
+        """
+        # Arrange - Mock anomalous regions found
+        mock_anomaly_check.return_value = [
+            {
+                'region': 'ap-southeast-2',
+                'hub_active': True,
+                'hub_details': {
+                    'hub_arn': 'arn:aws:securityhub:ap-southeast-2:123456789012:hub/default',
+                    'subscribed_at': '2024-01-15T10:30:00.000Z',
+                    'auto_enable_controls': True
+                }
+            },
+            {
+                'region': 'eu-west-3',
+                'hub_active': True, 
+                'hub_details': {
+                    'hub_arn': 'arn:aws:securityhub:eu-west-3:123456789012:hub/default',
+                    'subscribed_at': '2024-02-01T08:15:00.000Z',
+                    'auto_enable_controls': False
+                }
+            }
+        ]
+        
+        params = create_test_params()
+        
+        # Act
+        result = setup_security_hub(enabled='Yes', params=params, dry_run=False, verbose=True)
+        
+        # Assert
+        assert result is True, "Should handle anomalous hubs gracefully"
+        
+        # Check that anomaly warnings were displayed
+        all_output = ' '.join([str(call_args) for call_args in mock_print.call_args_list])
+        anomaly_mentioned = any(phrase in all_output.lower() for phrase in [
+            'anomalous', 'unexpected', 'cost', 'configuration drift'
+        ])
+        assert anomaly_mentioned, f"Should show anomalous hub warnings. Got: {all_output}"

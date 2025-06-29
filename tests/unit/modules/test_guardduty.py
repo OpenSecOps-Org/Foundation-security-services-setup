@@ -619,3 +619,56 @@ class TestGuardDutyConfigurationScenarios:
         
         # Specification: Function should handle both verbose and non-verbose modes
         # Integration tests validate the actual output behavior
+
+
+class TestGuardDutyAnomalousRegionDetection:
+    """
+    SPECIFICATION: GuardDuty anomalous region detection
+    
+    The check_anomalous_guardduty_regions function should:
+    1. Detect GuardDuty detectors in regions outside the expected list
+    2. Return list of anomalous regions with detector details
+    3. Handle API errors gracefully
+    4. Provide cost-impact warnings for unexpected activations
+    """
+    
+    @patch('modules.guardduty.printc')
+    @patch('modules.guardduty.check_anomalous_guardduty_regions')
+    def test_when_anomalous_detectors_found_then_show_cost_warnings(self, mock_anomaly_check, mock_print, mock_aws_services):
+        """
+        GIVEN: GuardDuty detectors exist in regions outside expected configuration
+        WHEN: setup_guardduty detects anomalous regions
+        THEN: Should warn about unexpected costs and configuration drift
+        """
+        # Arrange - Mock anomalous regions found
+        mock_anomaly_check.return_value = [
+            {
+                'region': 'ap-southeast-1',
+                'detector_count': 1,
+                'detector_details': [
+                    {'detector_id': 'detector123', 'status': 'ENABLED', 'finding_frequency': 'FIFTEEN_MINUTES'}
+                ]
+            },
+            {
+                'region': 'eu-central-1', 
+                'detector_count': 1,
+                'detector_details': [
+                    {'detector_id': 'detector456', 'status': 'ENABLED', 'finding_frequency': 'SIX_HOURS'}
+                ]
+            }
+        ]
+        
+        params = create_test_params()
+        
+        # Act
+        result = setup_guardduty(enabled='Yes', params=params, dry_run=False, verbose=True)
+        
+        # Assert
+        assert result is True, "Should handle anomalous detectors gracefully"
+        
+        # Check that anomaly warnings were displayed
+        all_output = ' '.join([str(call_args) for call_args in mock_print.call_args_list])
+        anomaly_mentioned = any(phrase in all_output.lower() for phrase in [
+            'anomalous', 'unexpected', 'cost', 'configuration drift'
+        ])
+        assert anomaly_mentioned, f"Should show anomalous detector warnings. Got: {all_output}"
