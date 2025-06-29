@@ -7,7 +7,7 @@ Automates the manual steps:
 3. In the Security-Adm account, enable and configure GuardDuty auto-enable in all regions
 """
 
-from .utils import printc, get_client, YELLOW, LIGHT_BLUE, GREEN, RED, GRAY, END, BOLD
+from .utils import printc, get_client, DelegationChecker, YELLOW, LIGHT_BLUE, GREEN, RED, GRAY, END, BOLD
 
 def setup_guardduty(enabled, params, dry_run, verbose):
     """Setup AWS GuardDuty with proper organization delegation."""
@@ -28,7 +28,7 @@ def setup_guardduty(enabled, params, dry_run, verbose):
         if enabled == 'No':
             # WARNING when someone tries to disable GuardDuty
             printc(RED, "\n" + "🚨" * 15)
-            printc(RED, "🚨 WARNING: GuardDuty Disable Requested! 🚨")
+            printc(RED, "🚨 WARNING: GuardDuty Disable Requested 🚨")
             printc(RED, "🚨" * 15)
             printc(RED, "")
             printc(RED, "GuardDuty is a CRITICAL security service that:")
@@ -36,7 +36,7 @@ def setup_guardduty(enabled, params, dry_run, verbose):
             printc(RED, "• Detects malicious activity and compromises")
             printc(RED, "• Required for compliance and security frameworks")
             printc(RED, "")
-            printc(RED, "⛔ DISABLING GUARDDUTY REDUCES SECURITY POSTURE!")
+            printc(RED, "⛔ DISABLING GUARDDUTY REDUCES SECURITY POSTURE")
             printc(RED, "")
             printc(RED, "GuardDuty setup SKIPPED due to enabled=No parameter.")
             printc(RED, "🚨" * 15)
@@ -45,12 +45,13 @@ def setup_guardduty(enabled, params, dry_run, verbose):
             regions = params['regions']
             admin_account = params['admin_account']
             security_account = params['security_account']
+            cross_account_role = params['cross_account_role']
             
             if verbose:
                 printc(GRAY, f"\n🔍 Checking all AWS regions for spurious GuardDuty activation...")
             
             # Pass empty list as expected_regions so ALL regions are checked
-            anomalous_regions = check_anomalous_guardduty_regions([], admin_account, security_account, verbose)
+            anomalous_regions = check_anomalous_guardduty_regions([], admin_account, security_account, cross_account_role, verbose)
             
             if anomalous_regions:
                 printc(YELLOW, f"\n⚠️  SPURIOUS GUARDDUTY ACTIVATION DETECTED:")
@@ -118,7 +119,7 @@ def setup_guardduty(enabled, params, dry_run, verbose):
         if verbose:
             printc(GRAY, f"\n🔍 Checking for GuardDuty detectors in unexpected regions...")
         
-        anomalous_regions = check_anomalous_guardduty_regions(regions, admin_account, security_account, verbose)
+        anomalous_regions = check_anomalous_guardduty_regions(regions, admin_account, security_account, cross_account_role, verbose)
         
         if anomalous_regions:
             any_changes_needed = True  # Anomalous regions require attention
@@ -137,8 +138,8 @@ def setup_guardduty(enabled, params, dry_run, verbose):
         
         # Report findings and take action
         if not any_changes_needed:
-            printc(GREEN, "✅ GuardDuty is already properly configured in all regions!")
-            printc(GREEN, "   No changes needed - existing setup meets stringent security standards.")
+            printc(GREEN, "✅ GuardDuty is already properly configured in all regions")
+            printc(GREEN, "   No changes needed - existing setup meets stringent security standards")
             
             # Show detailed configuration for each region ONLY when verbose
             if verbose:
@@ -209,7 +210,7 @@ def check_guardduty_in_region(region, admin_account, security_account, cross_acc
     }
     
     try:
-        guardduty_client = boto3.client('guardduty', region_name=region)
+        guardduty_client = get_client('guardduty', admin_account, region, cross_account_role)
         
         # Check GuardDuty detectors
         try:
@@ -248,8 +249,8 @@ def check_guardduty_in_region(region, admin_account, security_account, cross_acc
                 if finding_publishing_frequency == 'FIFTEEN_MINUTES':
                     status['guardduty_details'].append(f"   ✅ Finding Frequency: {finding_publishing_frequency} (optimal)")
                 elif finding_publishing_frequency == 'ONE_HOUR':
-                    status['guardduty_details'].append(f"   📊 Finding Frequency: {finding_publishing_frequency} (acceptable)")
-                    status['guardduty_details'].append("   💡 Consider setting to FIFTEEN_MINUTES for optimal threat detection")
+                    status['guardduty_details'].append(f"   Finding Frequency: {finding_publishing_frequency} (acceptable)")
+                    status['guardduty_details'].append("   Consider setting to FIFTEEN_MINUTES for optimal threat detection")
                 elif finding_publishing_frequency == 'SIX_HOURS':
                     status['guardduty_details'].append(f"   ⚠️  Finding Frequency: {finding_publishing_frequency} (suboptimal)")
                     status['needs_changes'] = True
@@ -272,43 +273,45 @@ def check_guardduty_in_region(region, admin_account, security_account, cross_acc
             if verbose:
                 printc(RED, f"    ❌ {error_msg}")
                 
-        # Check delegated administrator first to determine access pattern
-        try:
-            orgs_client = boto3.client('organizations', region_name=region)
-            delegated_admins = orgs_client.list_delegated_administrators(ServicePrincipal='guardduty.amazonaws.com')
-            
-            is_delegated_to_security = False
-            for admin in delegated_admins.get('DelegatedAdministrators', []):
-                if admin.get('Id') == security_account:
-                    status['delegation_status'] = 'delegated'
-                    is_delegated_to_security = True
-                    status['guardduty_details'].append(f"✅ Delegated Admin: {admin.get('Name', admin.get('Id'))}")
-                    break
-            else:
-                if status['guardduty_enabled']:
-                    # Case 2: GuardDuty enabled but no delegation to Security account
-                    status['delegation_status'] = 'not_delegated'
-                    
-                    # Check if delegated to a different account (weird configuration)
-                    other_delegated_admins = delegated_admins.get('DelegatedAdministrators', [])
-                    if other_delegated_admins:
-                        other_admin_ids = [admin.get('Id') for admin in other_delegated_admins]
-                        status['guardduty_details'].append(f"⚠️  GuardDuty delegated to other account(s): {', '.join(other_admin_ids)}")
-                        status['guardduty_details'].append(f"⚠️  Expected delegation to Security account: {security_account}")
-                        status['issues'].append(f"GuardDuty delegated to {', '.join(other_admin_ids)} instead of Security account {security_account}")
-                        status['actions'].append("Remove existing delegation and delegate to Security account")
-                        status['needs_changes'] = True
-                    else:
-                        # Case 2: Configuration but no delegation at all
-                        status['needs_changes'] = True
-                        status['issues'].append("GuardDuty enabled but not delegated to Security account")
-                        status['actions'].append("Delegate GuardDuty administration to Security account")
-                        status['guardduty_details'].append("❌ No delegation found - should delegate to Security account")
-                        
-        except ClientError as e:
-            error_msg = f"Check delegated administrators failed: {str(e)}"
-            status['errors'].append(error_msg)
-            status['guardduty_details'].append(f"❌ Delegation check failed: {str(e)}")
+        # Check delegation using shared utility
+        delegation_result = DelegationChecker.check_service_delegation(
+            service_principal='guardduty.amazonaws.com',
+            admin_account=admin_account,
+            security_account=security_account,
+            cross_account_role=cross_account_role,
+            verbose=verbose
+        )
+        
+        is_delegated_to_security = delegation_result['is_delegated_to_security']
+        
+        if delegation_result['delegation_check_failed']:
+            status['delegation_status'] = 'check_failed'
+            status['errors'].extend(delegation_result['errors'])
+            status['guardduty_details'].append("❌ Delegation check failed")
+            status['needs_changes'] = True
+            status['issues'].append("Could not verify GuardDuty delegation status")
+            status['actions'].append("Verify Organizations API permissions and try again")
+        elif is_delegated_to_security:
+            status['delegation_status'] = 'delegated'
+            status['guardduty_details'].append(f"✅ Delegated to Security account: {security_account}")
+        else:
+            if status['guardduty_enabled']:
+                status['delegation_status'] = 'not_delegated'
+                
+                # Check if delegated to other accounts
+                if delegation_result['delegation_details']:
+                    other_admin_ids = [admin.get('Id') for admin in delegation_result['delegation_details']]
+                    status['guardduty_details'].append(f"⚠️  GuardDuty delegated to other account(s): {', '.join(other_admin_ids)}")
+                    status['guardduty_details'].append(f"⚠️  Expected delegation to Security account: {security_account}")
+                    status['issues'].append(f"GuardDuty delegated to {', '.join(other_admin_ids)} instead of Security account {security_account}")
+                    status['actions'].append("Remove existing delegation and delegate to Security account")
+                    status['needs_changes'] = True
+                else:
+                    # No delegation at all
+                    status['needs_changes'] = True
+                    status['issues'].append("GuardDuty enabled but not delegated to Security account")
+                    status['actions'].append("Delegate GuardDuty administration to Security account")
+                    status['guardduty_details'].append("❌ No delegation found - should delegate to Security account")
             
         # Get organization configuration and member accounts 
         # If delegation is detected, switch to delegated admin account for complete data
@@ -368,15 +371,9 @@ def check_guardduty_in_region(region, admin_account, security_account, cross_acc
                                 kubernetes = datasources.get('Kubernetes', {}).get('AutoEnable', False) 
                                 malware = datasources.get('MalwareProtection', {}).get('AutoEnable', False)
                                 
-                                status['guardduty_details'].append(f"   📊 S3 Data Events: {s3_logs}")
-                                status['guardduty_details'].append(f"   📊 Kubernetes Audit Logs: {kubernetes}")
-                                status['guardduty_details'].append(f"   📊 Malware Protection: {malware}")
-                                
-                                # Optionally flag if important data sources are disabled
-                                if not s3_logs:
-                                    status['guardduty_details'].append("   ⚠️  S3 data events disabled - consider enabling for enhanced monitoring")
-                                if not malware:
-                                    status['guardduty_details'].append("   ⚠️  Malware protection disabled - consider enabling for enhanced security")
+                                status['guardduty_details'].append(f"   S3 Data Events: {s3_logs}")
+                                status['guardduty_details'].append(f"   Kubernetes Audit Logs: {kubernetes}")
+                                status['guardduty_details'].append(f"   Malware Protection: {malware}")
                                 
                         except ClientError as e:
                             error_msg = f"Organization configuration check failed: {str(e)}"
@@ -462,7 +459,7 @@ def check_guardduty_in_region(region, admin_account, security_account, cross_acc
     
     return status
 
-def check_anomalous_guardduty_regions(expected_regions, admin_account, security_account, verbose=False):
+def check_anomalous_guardduty_regions(expected_regions, admin_account, security_account, cross_account_role=None, verbose=False):
     """
     Check for GuardDuty detectors active in regions outside the expected list.
     
@@ -478,7 +475,7 @@ def check_anomalous_guardduty_regions(expected_regions, admin_account, security_
     
     try:
         # Get all AWS regions to check for anomalous detectors
-        ec2_client = boto3.client('ec2', region_name=expected_regions[0] if expected_regions else 'us-east-1')
+        ec2_client = get_client('ec2', admin_account, expected_regions[0] if expected_regions else 'us-east-1', cross_account_role)
         regions_response = ec2_client.describe_regions()
         all_regions = [region['RegionName'] for region in regions_response['Regions']]
         
@@ -490,7 +487,7 @@ def check_anomalous_guardduty_regions(expected_regions, admin_account, security_
         
         for region in unexpected_regions:
             try:
-                guardduty_client = boto3.client('guardduty', region_name=region)
+                guardduty_client = get_client('guardduty', admin_account, region, cross_account_role)
                 
                 # Check if there are any detectors in this region
                 detectors_response = guardduty_client.list_detectors()
@@ -515,10 +512,39 @@ def check_anomalous_guardduty_regions(expected_regions, admin_account, security_
                         })
                 
                 if detector_details:
+                    # Collect account details for better security actionability
+                    account_details = []
+                    
+                    # Add admin account details
+                    account_details.append({
+                        'account_id': admin_account,
+                        'account_status': 'ADMIN_ACCOUNT',
+                        'relationship_status': 'Self',
+                        'detector_status': 'ENABLED'  # Admin account has the detector
+                    })
+                    
+                    # Get member account details if any
+                    try:
+                        members_response = guardduty_client.list_members()
+                        members = members_response.get('Members', [])
+                        for member in members:
+                            account_details.append({
+                                'account_id': member.get('AccountId'),
+                                'account_status': 'MEMBER_ACCOUNT',
+                                'relationship_status': member.get('RelationshipStatus', 'Unknown'),
+                                'detector_status': member.get('RelationshipStatus', 'Unknown'),  # Use relationship status as detector status
+                                'invited_at': member.get('InvitedAt'),
+                                'updated_at': member.get('UpdatedAt')
+                            })
+                    except ClientError as e:
+                        if verbose:
+                            printc(GRAY, f"    (Could not get member details for {region}: {str(e)})")
+                    
                     anomalous_regions.append({
                         'region': region,
                         'detector_count': len(detector_details),
-                        'detector_details': detector_details
+                        'detector_details': detector_details,
+                        'account_details': account_details
                     })
                     
                     if verbose:

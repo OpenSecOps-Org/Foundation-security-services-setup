@@ -7,7 +7,7 @@ Automates the manual steps:
 2. In Security-Adm, configure Detective in all your selected regions.
 """
 
-from .utils import printc, get_client, YELLOW, LIGHT_BLUE, GREEN, RED, GRAY, END, BOLD
+from .utils import printc, get_client, DelegationChecker, YELLOW, LIGHT_BLUE, GREEN, RED, GRAY, END, BOLD
 
 def setup_detective(enabled, params, dry_run, verbose):
     """Setup Amazon Detective delegation and configuration with comprehensive discovery."""
@@ -43,7 +43,7 @@ def setup_detective(enabled, params, dry_run, verbose):
             try:
                 import boto3
                 from botocore.exceptions import ClientError
-                orgs_client = boto3.client('organizations', region_name=regions[0])
+                orgs_client = get_client('organizations', admin_account, regions[0], cross_account_role)
                 paginator = orgs_client.get_paginator('list_delegated_administrators')
                 detective_admins = []
                 for page in paginator.paginate(ServicePrincipal='detective.amazonaws.com'):
@@ -60,7 +60,7 @@ def setup_detective(enabled, params, dry_run, verbose):
             if detective_delegation_exists:
                 for region in regions:
                     try:
-                        detective_client = boto3.client('detective', region_name=region)
+                        detective_client = get_client('detective', admin_account, region, cross_account_role)
                         response = detective_client.list_graphs()
                         graphs = response.get('GraphList', [])
                         
@@ -121,7 +121,7 @@ def setup_detective(enabled, params, dry_run, verbose):
                     printc(GRAY, f"   🔍 Checking all AWS regions for spurious Detective activation...")
                 
                 # Pass empty list as expected_regions so ALL regions are checked
-                anomalous_regions = check_anomalous_detective_regions([], admin_account, security_account, verbose)
+                anomalous_regions = check_anomalous_detective_regions([], admin_account, security_account, cross_account_role, verbose)
                 
                 if anomalous_regions:
                     printc(YELLOW, f"\n⚠️  SPURIOUS DETECTIVE ACTIVATION DETECTED:")
@@ -208,7 +208,7 @@ def setup_detective(enabled, params, dry_run, verbose):
         if verbose:
             printc(GRAY, f"\n🔍 Checking for Detective graphs in unexpected regions...")
         
-        anomalous_regions = check_anomalous_detective_regions(regions, admin_account, security_account, verbose)
+        anomalous_regions = check_anomalous_detective_regions(regions, admin_account, security_account, cross_account_role, verbose)
         
         if anomalous_regions:
             any_changes_needed = True  # Anomalous regions require attention
@@ -219,15 +219,15 @@ def setup_detective(enabled, params, dry_run, verbose):
                 graph_count = anomaly['graph_count']
                 printc(YELLOW, f"  • {region}: {graph_count} graph(s) active (not in your regions list)")
             printc(YELLOW, f"")
-            printc(YELLOW, f"📋 ANOMALY RECOMMENDATIONS:")
+            printc(YELLOW, f"ANOMALY RECOMMENDATIONS:")
             printc(YELLOW, f"  • Review: Determine if these graphs are intentional or configuration drift")
             printc(YELLOW, f"  • Recommended: Disable Detective graphs in these regions to control costs")
             printc(YELLOW, f"  • Note: Adding regions to OpenSecOps requires full system redeployment")
-            printc(YELLOW, f"  💰 Cost Impact: Detective generates charges based on data ingestion volume per region")
+            printc(YELLOW, f"  Cost Impact: Detective generates charges based on data ingestion volume per region")
         
         # Report findings and take action
         if not any_changes_needed:
-            printc(GREEN, "✅ Amazon Detective is already properly configured in all regions!")
+            printc(GREEN, "✅ Amazon Detective is already properly configured in all regions")
             printc(GREEN, "   Investigation capabilities are available for GuardDuty findings analysis.")
             
             # Show detailed configuration for each region ONLY when verbose
@@ -331,24 +331,20 @@ def check_guardduty_prerequisite(admin_account, security_account, cross_account_
         # Simple check - is GuardDuty delegated and working in main region
         main_region = regions[0]
         
-        # Check if GuardDuty is delegated
-        orgs_client = boto3.client('organizations', region_name=main_region)
-        try:
-            paginator = orgs_client.get_paginator('list_delegated_administrators')
-            guardduty_admins = []
-            for page in paginator.paginate(ServicePrincipal='guardduty.amazonaws.com'):
-                guardduty_admins.extend(page.get('DelegatedAdministrators', []))
-        except ClientError:
-            return 'not_configured'
+        # Check if GuardDuty is delegated using shared utility
+        delegation_result = DelegationChecker.check_service_delegation(
+            service_principal='guardduty.amazonaws.com',
+            admin_account=admin_account,
+            security_account=security_account,
+            cross_account_role=cross_account_role,
+            verbose=verbose
+        )
         
-        # Check if delegated to our security account
-        is_delegated = any(admin.get('Id') == security_account for admin in guardduty_admins)
-        
-        if not is_delegated:
+        if delegation_result['delegation_check_failed'] or not delegation_result['is_delegated_to_security']:
             return 'not_configured'
         
         # Quick check if GuardDuty detector exists in main region
-        guardduty_client = boto3.client('guardduty', region_name=main_region)
+        guardduty_client = get_client('guardduty', admin_account, main_region, cross_account_role)
         try:
             detectors = guardduty_client.list_detectors()
             if not detectors.get('DetectorIds'):
@@ -395,46 +391,45 @@ def check_detective_in_region(region, admin_account, security_account, cross_acc
     }
     
     try:
-        # Check delegation status first
-        try:
-            orgs_client = boto3.client('organizations', region_name=region)
-            all_delegated_admins = []
-            paginator = orgs_client.get_paginator('list_delegated_administrators')
-            for page in paginator.paginate(ServicePrincipal='detective.amazonaws.com'):
-                all_delegated_admins.extend(page.get('DelegatedAdministrators', []))
-            
-            is_delegated_to_security = False
-            for admin in all_delegated_admins:
-                if admin.get('Id') == security_account:
-                    status['delegation_status'] = 'delegated'
-                    is_delegated_to_security = True
-                    status['detective_details'].append(f"✅ Delegated Admin: {admin.get('Name', admin.get('Id'))}")
-                    break
+        # Check delegation status using shared utility
+        delegation_result = DelegationChecker.check_service_delegation(
+            service_principal='detective.amazonaws.com',
+            admin_account=admin_account,
+            security_account=security_account,
+            cross_account_role=cross_account_role,
+            verbose=verbose
+        )
+        
+        if delegation_result['delegation_check_failed']:
+            status['delegation_status'] = 'check_failed'
+            status['errors'].extend(delegation_result['errors'])
+            status['detective_details'].append("❌ Delegation check failed")
+            status['needs_changes'] = True
+            status['issues'].append("Could not verify Detective delegation status")
+            status['actions'].append("Verify Organizations API permissions and try again")
+        elif delegation_result['is_delegated_to_security']:
+            status['delegation_status'] = 'delegated'
+            status['detective_details'].append(f"✅ Delegated to Security account: {security_account}")
+        else:
+            # Check if delegated to other accounts
+            if delegation_result['delegation_details']:
+                other_admin_ids = [admin.get('Id') for admin in delegation_result['delegation_details']]
+                status['delegation_status'] = 'delegated_wrong'
+                status['detective_details'].append(f"⚠️  Detective delegated to other account(s): {', '.join(other_admin_ids)}")
+                status['issues'].append(f"Detective delegated to {', '.join(other_admin_ids)} instead of Security account {security_account}")
+                status['actions'].append("Remove existing delegation and delegate to Security account")
+                status['needs_changes'] = True
             else:
-                if all_delegated_admins:
-                    # Delegated to wrong account
-                    status['delegation_status'] = 'delegated_wrong'
-                    other_admin_ids = [admin.get('Id') for admin in all_delegated_admins]
-                    status['detective_details'].append(f"⚠️  Detective delegated to other account(s): {', '.join(other_admin_ids)}")
-                    status['issues'].append(f"Detective delegated to {', '.join(other_admin_ids)} instead of Security account {security_account}")
-                    status['actions'].append("Remove existing delegation and delegate to Security account")
-                    status['needs_changes'] = True
-                else:
-                    # Not delegated
-                    status['delegation_status'] = 'not_delegated'
-                    status['needs_changes'] = True
-                    status['issues'].append("Detective is not delegated to Security account")
-                    status['actions'].append("Delegate Detective administration to Security account")
-                    status['detective_details'].append("❌ No delegation found - should delegate to Security account")
-                    
-        except ClientError as e:
-            error_msg = f"Check delegated administrators failed: {str(e)}"
-            status['errors'].append(error_msg)
-            status['detective_details'].append(f"❌ Delegation check failed: {str(e)}")
+                # Not delegated
+                status['delegation_status'] = 'not_delegated'
+                status['needs_changes'] = True
+                status['issues'].append("Detective is not delegated to Security account")
+                status['actions'].append("Delegate Detective administration to Security account")
+                status['detective_details'].append("❌ No delegation found - should delegate to Security account")
         
         # Check Detective graphs from admin account perspective
         try:
-            detective_client = boto3.client('detective', region_name=region)
+            detective_client = get_client('detective', admin_account, region, cross_account_role)
             
             # Detective list_graphs is NOT paginated - use direct call
             response = detective_client.list_graphs()
@@ -499,7 +494,7 @@ def check_detective_in_region(region, admin_account, security_account, cross_acc
             status['detective_details'].append(f"❌ List graphs failed: {str(e)}")
         
         # Get comprehensive organization data if delegated to security account
-        if (is_delegated_to_security and 
+        if (status['delegation_status'] == 'delegated' and 
             cross_account_role and 
             security_account != admin_account):
             
@@ -564,14 +559,14 @@ def check_detective_in_region(region, admin_account, security_account, cross_acc
     
     return status
 
-def check_anomalous_detective_regions(expected_regions, admin_account, security_account, verbose=False):
+def check_anomalous_detective_regions(expected_regions, admin_account, security_account, cross_account_role=None, verbose=False):
     """
     Check for Detective investigation graphs active in regions outside the expected list.
     
     This detects configuration drift where Detective was enabled in regions
     not included in the current setup, which could generate unexpected costs.
     
-    Returns list of anomalous regions with graph details.
+    Returns list of anomalous regions with graph details and account details.
     """
     import boto3
     from botocore.exceptions import ClientError
@@ -580,7 +575,7 @@ def check_anomalous_detective_regions(expected_regions, admin_account, security_
     
     try:
         # Get all AWS regions to check for anomalous Detective graphs
-        ec2_client = boto3.client('ec2', region_name=expected_regions[0] if expected_regions else 'us-east-1')
+        ec2_client = get_client('ec2', admin_account, expected_regions[0] if expected_regions else 'us-east-1', cross_account_role or 'AWSControlTowerExecution')
         regions_response = ec2_client.describe_regions()
         all_regions = [region['RegionName'] for region in regions_response['Regions']]
         
@@ -592,13 +587,23 @@ def check_anomalous_detective_regions(expected_regions, admin_account, security_
         
         for region in unexpected_regions:
             try:
-                detective_client = boto3.client('detective', region_name=region)
+                detective_client = get_client('detective', admin_account, region, cross_account_role or 'AWSControlTowerExecution')
                 
                 # Check if there are any Detective graphs in this region
                 graphs_response = detective_client.list_graphs()
                 graphs = graphs_response.get('GraphList', [])
                 
                 graph_details = []
+                account_details = []
+                
+                # Add admin account details 
+                account_details.append({
+                    'account_id': admin_account,
+                    'account_status': 'ADMIN_ACCOUNT',
+                    'graph_status': 'ENABLED' if graphs else 'DISABLED',
+                    'detective_status': 'ENABLED' if graphs else 'DISABLED'
+                })
+                
                 for graph in graphs:
                     try:
                         # Get member accounts for this graph to check if it's active
@@ -606,6 +611,17 @@ def check_anomalous_detective_regions(expected_regions, admin_account, security_
                         all_members = []
                         for page in members_paginator.paginate(GraphArn=graph['Arn']):
                             all_members.extend(page.get('MemberDetails', []))
+                        
+                        # Add member account details for better security actionability
+                        for member in all_members:
+                            account_details.append({
+                                'account_id': member.get('AccountId'),
+                                'member_status': member.get('Status', 'Unknown'),
+                                'graph_status': member.get('Status', 'Unknown'),
+                                'detective_status': member.get('Status', 'Unknown'),
+                                'invited_time': member.get('InvitedTime'),
+                                'updated_time': member.get('UpdatedTime')
+                            })
                         
                         graph_details.append({
                             'graph_arn': graph['Arn'],
@@ -625,7 +641,8 @@ def check_anomalous_detective_regions(expected_regions, admin_account, security_
                     anomalous_regions.append({
                         'region': region,
                         'graph_count': len(graph_details),
-                        'graph_details': graph_details
+                        'graph_details': graph_details,
+                        'account_details': account_details
                     })
                     
                     if verbose:

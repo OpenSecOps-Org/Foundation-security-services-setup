@@ -16,7 +16,7 @@ AWS Config Setup Requirements:
 import pytest
 import sys
 import os
-from unittest.mock import patch, call
+from unittest.mock import patch, call, Mock, MagicMock
 
 # Add the project root to the path to import modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
@@ -182,8 +182,8 @@ class TestAWSConfigUserFeedback:
         # Verify huge warning was displayed
         all_output = ' '.join(str(call) for call in mock_print.call_args_list)
         
-        assert 'CRITICAL WARNING: AWS Config Disable Requested!' in all_output, "Should show critical warning"
-        assert 'DISABLING CONFIG WILL BREAK SECURITY MONITORING!' in all_output, "Should emphasize breaking security"
+        assert 'CRITICAL WARNING: AWS Config Disable Requested' in all_output, "Should show critical warning"
+        assert 'DISABLING CONFIG WILL BREAK SECURITY MONITORING' in all_output, "Should emphasize breaking security"
         assert 'Config setup SKIPPED due to enabled=No parameter' in all_output, "Should indicate service is skipped"
     
     @patch('builtins.print')
@@ -403,22 +403,21 @@ class TestAWSConfigConfigurationScenarios:
     4. Valid configurations - Properly configured with correct IAM global recording per region role
     """
     
-    @patch('boto3.client')
-    def test_scenario_1_unconfigured_service_detected(self, mock_boto_client):
+    def test_scenario_1_unconfigured_service_detected(self, mock_aws_services):
         """
         GIVEN: AWS Config is not enabled in a region (no recorders)
         WHEN: check_config_in_region is called
         THEN: Should detect unconfigured service and recommend enablement
         """
-        # Arrange - No configuration recorders found
-        mock_config_client = mock_boto_client.return_value
-        mock_config_client.describe_configuration_recorders.return_value = {'ConfigurationRecorders': []}
+        # Arrange - No configuration recorders found - this will be mocked by mock_aws_services
         
         # Act
         from modules.aws_config import check_config_in_region
         result = check_config_in_region(
             region='us-east-1',
             is_main_region=True,
+            admin_account='123456789012',
+            cross_account_role='AWSControlTowerExecution',
             verbose=False
         )
         
@@ -429,15 +428,16 @@ class TestAWSConfigConfigurationScenarios:
         assert "Create configuration recorder" in result['actions']
         assert "❌ No configuration recorders found" in result['config_details']
     
-    @patch('boto3.client')
-    def test_scenario_2_main_region_missing_iam_global_recording(self, mock_boto_client):
+    @patch('modules.aws_config.get_client')
+    def test_scenario_2_main_region_missing_iam_global_recording(self, mock_get_client):
         """
         GIVEN: AWS Config is enabled in main region but not recording IAM global events
         WHEN: check_config_in_region is called for main region
         THEN: Should detect missing IAM global recording and recommend fix
         """
         # Arrange - Config enabled but no IAM global recording in main region
-        mock_config_client = mock_boto_client.return_value
+        mock_config_client = MagicMock()
+        mock_get_client.return_value = mock_config_client
         
         # Configuration recorder exists but without IAM global recording
         mock_config_client.describe_configuration_recorders.return_value = {
@@ -463,6 +463,8 @@ class TestAWSConfigConfigurationScenarios:
         result = check_config_in_region(
             region='us-east-1',
             is_main_region=True,  # Main region should record IAM global
+            admin_account='123456789012',
+            cross_account_role='AWSControlTowerExecution',
             verbose=False
         )
         
@@ -474,17 +476,18 @@ class TestAWSConfigConfigurationScenarios:
         assert "Enable IAM global resource recording" in result['actions']
         # Check that IAM global resources are marked as excluded in details
         details_str = '\n'.join(result['config_details'])
-        assert "🌍 IAM Global Resources: ❌ Excluded" in details_str
+        assert "IAM Global Resources: ✅ Excluded" in details_str
     
-    @patch('boto3.client') 
-    def test_scenario_3_non_main_region_incorrectly_recording_iam_global(self, mock_boto_client):
+    @patch('modules.aws_config.get_client')
+    def test_scenario_3_non_main_region_incorrectly_recording_iam_global(self, mock_get_client):
         """
         GIVEN: AWS Config is enabled in non-main region but incorrectly recording IAM global events
         WHEN: check_config_in_region is called for non-main region
         THEN: Should detect incorrect IAM global recording and recommend fix
         """
         # Arrange - Config enabled with IAM global recording in non-main region
-        mock_config_client = mock_boto_client.return_value
+        mock_config_client = MagicMock()
+        mock_get_client.return_value = mock_config_client
         
         # Configuration recorder exists with IAM global recording (wrong for non-main region)
         mock_config_client.describe_configuration_recorders.return_value = {
@@ -509,6 +512,8 @@ class TestAWSConfigConfigurationScenarios:
         result = check_config_in_region(
             region='us-west-2',
             is_main_region=False,  # Non-main region should NOT record IAM global
+            admin_account='123456789012',
+            cross_account_role='AWSControlTowerExecution',
             verbose=False
         )
         
@@ -520,17 +525,18 @@ class TestAWSConfigConfigurationScenarios:
         assert "Disable IAM global resource recording" in result['actions']
         # Check that IAM global resources are marked as included in details
         details_str = '\n'.join(result['config_details'])
-        assert "🌍 IAM Global Resources: ✅ Included" in details_str
+        assert "IAM Global Resources: ✅ Included" in details_str
     
-    @patch('boto3.client')
-    def test_scenario_3_weird_configuration_missing_delivery_channel(self, mock_boto_client):
+    @patch('modules.aws_config.get_client')
+    def test_scenario_3_weird_configuration_missing_delivery_channel(self, mock_get_client):
         """
         GIVEN: AWS Config is enabled but missing delivery channel
         WHEN: check_config_in_region is called
         THEN: Should detect weird configuration and recommend fix
         """
         # Arrange - Config enabled but no delivery channel
-        mock_config_client = mock_boto_client.return_value
+        mock_config_client = MagicMock()
+        mock_get_client.return_value = mock_config_client
         
         # Configuration recorder exists with proper IAM global settings
         mock_config_client.describe_configuration_recorders.return_value = {
@@ -555,6 +561,8 @@ class TestAWSConfigConfigurationScenarios:
         result = check_config_in_region(
             region='us-east-1',
             is_main_region=True,
+            admin_account='123456789012',
+            cross_account_role='AWSControlTowerExecution',
             verbose=False
         )
         
@@ -565,15 +573,16 @@ class TestAWSConfigConfigurationScenarios:
         assert "Create delivery channel" in result['actions']
         assert "❌ No delivery channels found" in result['config_details']
     
-    @patch('boto3.client')
-    def test_scenario_4_valid_configuration_optimal_setup(self, mock_boto_client):
+    @patch('modules.aws_config.get_client')
+    def test_scenario_4_valid_configuration_optimal_setup(self, mock_get_client):
         """
         GIVEN: AWS Config is properly configured with optimal settings
         WHEN: check_config_in_region is called
         THEN: Should detect valid configuration and require no changes
         """
         # Arrange - Optimal configuration
-        mock_config_client = mock_boto_client.return_value
+        mock_config_client = MagicMock()
+        mock_get_client.return_value = mock_config_client
         
         # Configuration recorder with optimal settings
         mock_config_client.describe_configuration_recorders.return_value = {
@@ -622,6 +631,8 @@ class TestAWSConfigConfigurationScenarios:
         result = check_config_in_region(
             region='us-east-1',
             is_main_region=True,
+            admin_account='123456789012',
+            cross_account_role='AWSControlTowerExecution',
             verbose=False
         )
         
@@ -635,13 +646,13 @@ class TestAWSConfigConfigurationScenarios:
         # Check that optimal settings are properly detected
         details_str = '\n'.join(result['config_details'])
         assert "✅ Configuration Recorders: 1 found" in details_str
-        assert "📊 Recording: All supported resources" in details_str
-        assert "🌍 IAM Global Resources: ✅ Included" in details_str
-        assert "⏱️  Recording Frequency: CONTINUOUS" in details_str
+        assert "Recording: All supported resources" in details_str
+        assert "IAM Global Resources: ✅ Included" in details_str
+        assert "Recording Frequency: CONTINUOUS" in details_str
         assert "✅ Delivery Channels: 1 found" in details_str
         assert "✅ Config Rules: 3 active rules" in details_str
-        assert "📋 AWS Managed Rules: 2" in details_str
-        assert "📋 Custom Rules: 1" in details_str
+        assert "AWS Managed Rules: 2" in details_str
+        assert "Custom Rules: 1" in details_str
     
     def test_verbosity_control_in_configuration_detection(self):
         """

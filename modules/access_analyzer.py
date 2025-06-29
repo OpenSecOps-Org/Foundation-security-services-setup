@@ -7,7 +7,7 @@ Automates the manual steps:
 3. In Security-Adm, set up organisation-wide analyzer for unused access (main region only)
 """
 
-from .utils import printc, get_client, YELLOW, LIGHT_BLUE, GREEN, RED, GRAY, END, BOLD
+from .utils import printc, get_client, DelegationChecker, YELLOW, LIGHT_BLUE, GREEN, RED, GRAY, END, BOLD
 
 def setup_access_analyzer(enabled, params, dry_run, verbose):
     """Setup IAM Access Analyzer delegation and organization-wide analyzers."""
@@ -28,7 +28,7 @@ def setup_access_analyzer(enabled, params, dry_run, verbose):
         if enabled == 'No':
             # WARNING when someone tries to disable Access Analyzer
             printc(RED, "\n" + "🚨" * 15)
-            printc(RED, "🚨 WARNING: IAM Access Analyzer Disable Requested! 🚨")
+            printc(RED, "🚨 WARNING: IAM Access Analyzer Disable Requested 🚨")
             printc(RED, "🚨" * 15)
             printc(RED, "")
             printc(RED, "IAM Access Analyzer is a CRITICAL security service that:")
@@ -37,7 +37,7 @@ def setup_access_analyzer(enabled, params, dry_run, verbose):
             printc(RED, "• Provides continuous security posture monitoring")
             printc(RED, "• Required for compliance and access governance")
             printc(RED, "")
-            printc(RED, "⛔ DISABLING ACCESS ANALYZER REDUCES SECURITY VISIBILITY!")
+            printc(RED, "⛔ DISABLING ACCESS ANALYZER REDUCES SECURITY VISIBILITY")
             printc(RED, "")
             printc(RED, "Access Analyzer setup SKIPPED due to enabled=No parameter.")
             printc(RED, "🚨" * 15)
@@ -92,7 +92,7 @@ def setup_access_analyzer(enabled, params, dry_run, verbose):
         if verbose:
             printc(GRAY, f"\n🔍 Checking Access Analyzer delegation (organization-wide)...")
             
-        delegation_status = check_access_analyzer_delegation(admin_account, security_account, verbose)
+        delegation_status = check_access_analyzer_delegation(admin_account, security_account, cross_account_role, verbose)
         
         if delegation_status == 'not_delegated':
             printc(YELLOW, f"⚠️  Access Analyzer is not delegated to Security account")
@@ -108,7 +108,7 @@ def setup_access_analyzer(enabled, params, dry_run, verbose):
         any_changes_needed = False
         if anomalous_regions:
             any_changes_needed = True
-            printc(RED, f"\n🚨 ANOMALOUS ANALYZERS DETECTED!")
+            printc(RED, f"\n🚨 ANOMALOUS ANALYZERS DETECTED")
             printc(RED, f"Access Analyzer analyzers found in regions NOT in your specified regions list:")
             for anomalous_region in anomalous_regions:
                 printc(RED, f"  • {anomalous_region}: Has analyzers but not in regions parameter")
@@ -145,8 +145,8 @@ def setup_access_analyzer(enabled, params, dry_run, verbose):
         
         # Report findings and take action
         if not any_changes_needed:
-            printc(GREEN, "✅ IAM Access Analyzer is already properly configured in all regions!")
-            printc(GREEN, "   No changes needed - existing setup meets stringent security standards.")
+            printc(GREEN, "✅ IAM Access Analyzer is already properly configured in all regions")
+            printc(GREEN, "   No changes needed - existing setup meets stringent security standards")
             
             # Show detailed configuration for each region ONLY when verbose
             if verbose:
@@ -242,52 +242,45 @@ def setup_access_analyzer(enabled, params, dry_run, verbose):
         printc(RED, f"ERROR in setup_access_analyzer: {e}")
         return False
 
-def check_access_analyzer_delegation(admin_account, security_account, verbose=False):
+def check_access_analyzer_delegation(admin_account, security_account, cross_account_role='AWSControlTowerExecution', verbose=False):
     """
-    Check AWS IAM Access Analyzer delegation status (organization-wide).
+    Check AWS IAM Access Analyzer delegation status (organization-wide) using shared utility.
     
     Access Analyzer delegation is global, not per-region, so we check it once.
     
     Returns: 'delegated', 'delegated_wrong', or 'not_delegated'
     """
-    import boto3
-    from botocore.exceptions import ClientError
+    # Use shared delegation checker
+    delegation_result = DelegationChecker.check_service_delegation(
+        service_principal='access-analyzer.amazonaws.com',
+        admin_account=admin_account,
+        security_account=security_account,
+        cross_account_role=cross_account_role,
+        verbose=verbose
+    )
     
-    try:
-        # Use us-east-1 as the region for Organizations API calls (global service)
-        orgs_client = boto3.client('organizations', region_name='us-east-1')
-        all_delegated_admins = []
-        paginator = orgs_client.get_paginator('list_delegated_administrators')
-        for page in paginator.paginate(ServicePrincipal='access-analyzer.amazonaws.com'):
-            all_delegated_admins.extend(page.get('DelegatedAdministrators', []))
-        
+    if delegation_result['delegation_check_failed']:
         if verbose:
-            printc(GRAY, f"    Found {len(all_delegated_admins)} delegated admin(s) for Access Analyzer")
-        
-        # Check if delegated to our security account
-        for admin in all_delegated_admins:
-            if admin.get('Id') == security_account:
-                if verbose:
-                    printc(GREEN, f"    ✅ Delegated to Security account: {admin.get('Name', admin.get('Id'))}")
-                return 'delegated'
-        
-        # Check if delegated to other accounts
-        if all_delegated_admins:
-            other_admin_ids = [admin.get('Id') for admin in all_delegated_admins]
-            if verbose:
-                printc(YELLOW, f"    ⚠️  Delegated to other account(s): {', '.join(other_admin_ids)}")
-                printc(YELLOW, f"    Expected delegation to Security account: {security_account}")
-            return 'delegated_wrong'
-        
-        # No delegation found
+            printc(RED, f"    ❌ Delegation check failed: {', '.join(delegation_result['errors'])}")
+        return 'check_failed'
+    
+    if delegation_result['is_delegated_to_security']:
         if verbose:
-            printc(RED, f"    ❌ No delegation found - should delegate to Security account")
-        return 'not_delegated'
-        
-    except ClientError as e:
+            printc(GREEN, f"    ✅ Delegated to Security account: {security_account}")
+        return 'delegated'
+    
+    # Check if delegated to other accounts
+    if delegation_result['delegation_details']:
+        other_admin_ids = [admin.get('Id') for admin in delegation_result['delegation_details']]
         if verbose:
-            printc(RED, f"    ❌ Delegation check failed: {str(e)}")
-        return 'not_delegated'
+            printc(YELLOW, f"    ⚠️  Delegated to other account(s): {', '.join(other_admin_ids)}")
+            printc(YELLOW, f"    Expected delegation to Security account: {security_account}")
+        return 'delegated_wrong'
+    
+    # No delegation found
+    if verbose:
+        printc(RED, f"    ❌ No delegation found - should delegate to Security account")
+    return 'not_delegated'
 
 def check_access_analyzer_in_region(region, admin_account, security_account, cross_account_role, is_main_region, delegation_status, verbose=False):
     """
@@ -322,7 +315,7 @@ def check_access_analyzer_in_region(region, admin_account, security_account, cro
     try:
         # Check for analyzers in this region (from admin account perspective first)
         try:
-            analyzer_client = boto3.client('accessanalyzer', region_name=region)
+            analyzer_client = get_client('accessanalyzer', admin_account, region, 'AWSControlTowerExecution')
             all_analyzers = []
             paginator = analyzer_client.get_paginator('list_analyzers')
             for page in paginator.paginate():
@@ -464,7 +457,7 @@ def check_access_analyzer_in_region(region, admin_account, security_account, cro
     
     return status
 
-def detect_anomalous_access_analyzer_regions(expected_regions, admin_account, security_account, cross_account_role, verbose=False):
+def detect_anomalous_access_analyzer_regions(expected_regions, admin_account, security_account, cross_account_role=None, verbose=False):
     """
     Detect regions where Access Analyzer analyzers exist but are not in the expected regions list.
     
@@ -478,7 +471,7 @@ def detect_anomalous_access_analyzer_regions(expected_regions, admin_account, se
     
     try:
         # Get list of all AWS regions
-        ec2_client = boto3.client('ec2', region_name=expected_regions[0])  # Use first region as base
+        ec2_client = get_client('ec2', admin_account, expected_regions[0], 'AWSControlTowerExecution')  # Use first region as base
         all_regions_response = ec2_client.describe_regions()
         all_regions = [region['RegionName'] for region in all_regions_response['Regions']]
         
@@ -491,7 +484,7 @@ def detect_anomalous_access_analyzer_regions(expected_regions, admin_account, se
         for region in regions_to_check:
             try:
                 # Check if there are any analyzers in this unexpected region
-                analyzer_client = boto3.client('accessanalyzer', region_name=region)
+                analyzer_client = get_client('accessanalyzer', admin_account, region, 'AWSControlTowerExecution')
                 all_analyzers = []
                 try:
                     paginator = analyzer_client.get_paginator('list_analyzers')
@@ -507,7 +500,23 @@ def detect_anomalous_access_analyzer_regions(expected_regions, admin_account, se
                 
                 # If there are analyzers in this unexpected region, it's anomalous
                 if all_analyzers:
-                    anomalous_regions.append(region)
+                    # Collect account details for better security actionability
+                    account_details = []
+                    
+                    # Add admin account details (this account owns the analyzers)
+                    account_details.append({
+                        'account_id': admin_account,
+                        'account_status': 'ADMIN_ACCOUNT',
+                        'analyzer_status': 'ENABLED'
+                    })
+                    
+                    anomalous_regions.append({
+                        'region': region,
+                        'analyzer_count': len(all_analyzers),
+                        'analyzer_details': all_analyzers,
+                        'account_details': account_details
+                    })
+                    
                     if verbose:
                         analyzer_names = [analyzer.get('name') for analyzer in all_analyzers]
                         printc(GRAY, f"  🚨 Found {len(all_analyzers)} analyzer(s) in unexpected region {region}")

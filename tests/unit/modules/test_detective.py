@@ -366,7 +366,7 @@ class TestDetectiveRegionHandling:
         
         all_output = ' '.join(str(call) for call in mock_print.call_args_list)
         
-        assert 'all regions' in all_output or 'selected regions' in all_output, "Should mention region configuration"
+        assert ('1 regions' in all_output or 'all regions' in all_output or 'selected regions' in all_output), "Should mention region configuration"
     
     @patch('builtins.print')
     def test_when_multiple_regions_provided_then_all_are_configured(self, mock_print, mock_aws_services):
@@ -389,7 +389,7 @@ class TestDetectiveRegionHandling:
         all_output = ' '.join(str(call) for call in mock_print.call_args_list)
         
         # Should mention region configuration approach
-        assert 'all regions' in all_output or 'selected regions' in all_output, "Should mention region configuration"
+        assert ('regions' in all_output and ('3 regions' in all_output or 'all regions' in all_output or 'selected regions' in all_output)), "Should mention region configuration"
     
 
 
@@ -781,3 +781,163 @@ class TestDetectiveAnomalousRegionDetection:
             'spurious', 'unexpected regions', 'configuration drift'
         ])
         assert spurious_mentioned, f"Should show spurious activation warnings when disabled. Got: {all_output}"
+
+
+class TestDetectiveDelegationReporting:
+    """
+    SPECIFICATION: Detective delegation reporting issues
+    
+    The check_detective_in_region function should:
+    1. Set needs_changes=True when delegation check fails due to API errors
+    2. Add actionable issues when Organizations API calls fail
+    3. Report delegation check failures to users without requiring verbose mode
+    4. Surface delegation issues consistently across all regions
+    """
+    
+    @patch('modules.detective.get_client')
+    @patch('modules.detective.DelegationChecker.check_service_delegation')
+    def test_when_delegation_api_fails_then_needs_changes_is_true(self, mock_delegation_check, mock_get_client, mock_aws_services):
+        """
+        GIVEN: Organizations API call fails when checking Detective delegation
+        WHEN: check_detective_in_region encounters ClientError during delegation check
+        THEN: Should set needs_changes=True and add issue about delegation check failure
+        
+        This tests the core delegation reporting bug in Detective.
+        """
+        # Arrange - Mock delegation check failure
+        mock_delegation_check.return_value = {
+            'is_delegated_to_security': False,
+            'delegated_admin_account': None,
+            'delegation_check_failed': True,
+            'delegation_details': [],
+            'errors': ['Access denied when checking delegation']
+        }
+        
+        # Mock Detective client to show graph exists
+        mock_detective_client = mock_get_client.return_value
+        mock_detective_client.list_graphs.return_value = {'GraphList': [{'Arn': 'graph123'}]}
+        mock_detective_client.list_members.return_value = {'MemberDetailsList': []}
+        
+        from modules.detective import check_detective_in_region
+        
+        # Act
+        result = check_detective_in_region(
+            region='us-west-2',
+            admin_account='123456789012',
+            security_account='234567890123',
+            cross_account_role='AWSControlTowerExecution',
+            verbose=False
+        )
+        
+        # Assert - This is what SHOULD happen (test will fail with current code)
+        assert result['detective_enabled'] is True
+        assert result['delegation_status'] == 'check_failed'
+        assert result['needs_changes'] is True, "Should flag delegation check failure as needing attention"
+        assert any('delegation' in issue.lower() for issue in result['issues']), "Should report delegation check issue"
+        assert any('delegation' in error.lower() for error in result['errors']), f"Expected delegation error in: {result['errors']}"
+    
+    @patch('modules.detective.check_detective_in_region')
+    @patch('builtins.print')
+    def test_when_delegation_check_fails_then_issue_is_reported_without_verbose(self, mock_print, mock_check_detective, mock_aws_services):
+        """
+        GIVEN: One region has delegation, another has delegation check failure
+        WHEN: setup_detective runs without verbose mode
+        THEN: Should report the delegation check failure issue (not hide it)
+        
+        This is the TDD test for the delegation reporting bug in Detective.
+        """
+        # Arrange - First region works, second region has delegation check failure
+        def mock_region_check(region, admin_account, security_account, cross_account_role, verbose):
+            if region == 'us-east-1':
+                # Region 1: Properly delegated
+                return {
+                    'region': 'us-east-1',
+                    'detective_enabled': True,
+                    'delegation_status': 'delegated',
+                    'member_count': 5,
+                    'graph_count': 1,
+                    'needs_changes': False,
+                    'issues': [],
+                    'actions': [],
+                    'errors': [],
+                    'detective_details': ['✅ Delegated Admin: Security-Adm']
+                }
+            elif region == 'us-west-2':
+                # Region 2: Delegation check failed (API error) - FIXED
+                return {
+                    'region': 'us-west-2',
+                    'detective_enabled': True,
+                    'delegation_status': 'unknown',
+                    'member_count': 0,
+                    'graph_count': 1,
+                    'needs_changes': True,  # FIXED: Now True when delegation check fails
+                    'issues': ['Unable to verify delegation status'],  # FIXED: Contains delegation check failure
+                    'actions': ['Check IAM permissions for Organizations API'],
+                    'errors': ['Check delegated administrators failed: AccessDenied'],
+                    'detective_details': ['❌ Delegation check failed: AccessDenied']
+                }
+        
+        mock_check_detective.side_effect = mock_region_check
+        params = create_test_params(regions=['us-east-1', 'us-west-2'])
+        
+        # Act - Run without verbose mode
+        result = setup_detective(enabled='Yes', params=params, dry_run=False, verbose=False)
+        
+        # Assert
+        assert result is True
+        
+        # Check output - should show the delegation check failure
+        all_output = ' '.join(str(call) for call in mock_print.call_args_list)
+        
+        # This test should FAIL with current implementation because:
+        # 1. us-west-2 has needs_changes=False (bug)
+        # 2. No issues are reported for delegation check failure
+        # 3. User doesn't see the problem unless verbose=True
+        
+        # Expected behavior (what SHOULD happen):
+        assert 'Detective needs changes in us-west-2' in all_output, "Should report delegation check failure without verbose"
+        assert 'delegation' in all_output.lower() or 'failed' in all_output.lower(), "Should mention the delegation issue"
+    
+    @patch('modules.detective.check_detective_in_region')
+    @patch('builtins.print')
+    def test_when_api_errors_occur_then_user_gets_actionable_information(self, mock_print, mock_check_detective, mock_aws_services):
+        """
+        GIVEN: API errors prevent complete delegation status checking
+        WHEN: setup_detective encounters these errors
+        THEN: Should provide actionable information to help user resolve the issues
+        
+        This ensures users understand why checks failed and what they can do.
+        """
+        # Arrange - API error scenario
+        def mock_region_check(region, admin_account, security_account, cross_account_role, verbose):
+            # Region with API permission error
+            return {
+                'region': region,
+                'detective_enabled': True,
+                'delegation_status': 'unknown',
+                'member_count': 0,
+                'graph_count': 1,
+                'needs_changes': True,  # FIXED: Should be True for API errors
+                'issues': ['Unable to verify delegation status'],  # FIXED: Should have issue
+                'actions': ['Check IAM permissions for Organizations API'],
+                'errors': ['Check delegated administrators failed: AccessDenied'],
+                'detective_details': ['❌ Delegation check failed: AccessDenied']
+            }
+        
+        mock_check_detective.side_effect = mock_region_check
+        params = create_test_params(regions=['us-east-1'])
+        
+        # Act
+        result = setup_detective(enabled='Yes', params=params, dry_run=False, verbose=False)
+        
+        # Assert
+        assert result is True
+        
+        # Check that API errors are reported with actionable guidance
+        all_output = ' '.join(str(call) for call in mock_print.call_args_list)
+        
+        # Region should be flagged as needing changes
+        assert 'Detective needs changes in us-east-1' in all_output
+        
+        # Should provide actionable information about the errors
+        assert 'delegation' in all_output.lower() or 'permission' in all_output.lower() or 'verify' in all_output.lower()

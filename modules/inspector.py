@@ -15,7 +15,7 @@ COST-CONSCIOUS APPROACH:
 - Client controls specific scan types (ECR, EC2, Lambda) based on needs
 """
 
-from .utils import printc, get_client, YELLOW, LIGHT_BLUE, GREEN, RED, GRAY, END, BOLD
+from .utils import printc, get_client, DelegationChecker, YELLOW, LIGHT_BLUE, GREEN, RED, GRAY, END, BOLD
 
 def setup_inspector(enabled, params, dry_run, verbose):
     """Setup Amazon Inspector delegation and configuration with cost-conscious minimal approach."""
@@ -48,28 +48,24 @@ def setup_inspector(enabled, params, dry_run, verbose):
             total_scan_types_enabled = 0
             total_members = 0
             
-            # Check delegation first
-            try:
-                import boto3
-                from botocore.exceptions import ClientError
-                orgs_client = boto3.client('organizations', region_name=regions[0])
-                paginator = orgs_client.get_paginator('list_delegated_administrators')
-                inspector_admins = []
-                for page in paginator.paginate(ServicePrincipal='inspector2.amazonaws.com'):
-                    inspector_admins.extend(page.get('DelegatedAdministrators', []))
-                
-                if any(admin.get('Id') == security_account for admin in inspector_admins):
-                    inspector_delegation_exists = True
-                    if verbose:
-                        printc(GRAY, f"   ✅ Inspector delegated to Security account ({security_account})")
-            except Exception:
-                pass  # Ignore delegation check errors
+            # Check delegation using shared utility
+            delegation_result = DelegationChecker.check_service_delegation(
+                service_principal='inspector2.amazonaws.com',
+                admin_account=admin_account,
+                security_account=security_account,
+                cross_account_role=cross_account_role,
+                verbose=verbose
+            )
+            
+            inspector_delegation_exists = delegation_result['is_delegated_to_security']
+            if inspector_delegation_exists and verbose:
+                printc(GRAY, f"   ✅ Inspector delegated to Security account ({security_account})")
             
             # Check for active Inspector scanning in ALL regions (regardless of delegation)
             # Inspector scanning can exist even without delegation, and we want to detect unexpected costs
             try:
                 import boto3
-                ec2_client = boto3.client('ec2', region_name=regions[0] if regions else 'us-east-1')
+                ec2_client = get_client('ec2', admin_account, regions[0] if regions else 'us-east-1', cross_account_role)
                 regions_response = ec2_client.describe_regions()
                 all_regions = [region['RegionName'] for region in regions_response['Regions']]
                 
@@ -83,7 +79,7 @@ def setup_inspector(enabled, params, dry_run, verbose):
             
             for region in all_regions:
                 try:
-                    inspector_client = boto3.client('inspector2', region_name=region)
+                    inspector_client = get_client('inspector2', admin_account, region, cross_account_role)
                     
                     # Check scanning status
                     scanning_status = inspector_client.batch_get_account_status()
@@ -160,7 +156,7 @@ def setup_inspector(enabled, params, dry_run, verbose):
                 
                 if unexpected_regions:
                     printc(YELLOW, f"  • {len(unexpected_regions)} UNEXPECTED region(s) with active scanning:")
-                    printc(YELLOW, f"    ⚠️  These regions are outside your configuration and generating costs!")
+                    printc(YELLOW, f"    ⚠️  These regions are outside your configuration and generating costs")
                     for region_info in unexpected_regions:
                         region = region_info['region']
                         scan_types = region_info['scan_types']
@@ -281,8 +277,8 @@ def setup_inspector(enabled, params, dry_run, verbose):
         
         # Report findings and take action
         if not any_changes_needed:
-            printc(GREEN, "✅ Amazon Inspector is already properly configured in all regions!")
-            printc(GREEN, "   Vulnerability scanning delegation is available for organization-wide security.")
+            printc(GREEN, "✅ Amazon Inspector is already properly configured in all regions")
+            printc(GREEN, "   Vulnerability scanning delegation is available for organization-wide security")
             
             # Show summary information about Inspector configuration
             total_members = sum(status.get('member_count', 0) for status in inspector_status.values())
@@ -409,47 +405,47 @@ def check_inspector_in_region(region, admin_account, security_account, cross_acc
     }
     
     try:
-        # Check delegation status first
-        try:
-            orgs_client = boto3.client('organizations', region_name=region)
-            all_delegated_admins = []
-            paginator = orgs_client.get_paginator('list_delegated_administrators')
-            for page in paginator.paginate(ServicePrincipal='inspector2.amazonaws.com'):
-                all_delegated_admins.extend(page.get('DelegatedAdministrators', []))
-            
-            is_delegated_to_security = False
-            for admin in all_delegated_admins:
-                if admin.get('Id') == security_account:
-                    status['delegation_status'] = 'delegated'
-                    is_delegated_to_security = True
-                    status['inspector_details'].append(f"✅ Delegated Admin: {admin.get('Name', admin.get('Id'))}")
-                    break
-            else:
-                if all_delegated_admins:
-                    # Delegated to wrong account
-                    status['delegation_status'] = 'delegated_wrong'
-                    other_admin_ids = [admin.get('Id') for admin in all_delegated_admins]
-                    status['inspector_details'].append(f"⚠️  Inspector delegated to other account(s): {', '.join(other_admin_ids)}")
-                    status['issues'].append(f"Inspector delegated to {', '.join(other_admin_ids)} instead of Security account {security_account}")
-                    status['actions'].append("Remove existing delegation and delegate to Security account")
-                    status['needs_changes'] = True
-                else:
-                    # Not delegated
-                    status['delegation_status'] = 'not_delegated'
-                    status['needs_changes'] = True
-                    status['issues'].append("Inspector is not delegated to Security account")
-                    status['actions'].append("Delegate Inspector administration to Security account")
-                    status['inspector_details'].append("❌ No delegation found - should delegate to Security account")
-                    
-        except ClientError as e:
-            error_msg = f"Check delegated administrators failed: {str(e)}"
-            status['errors'].append(error_msg)
-            status['inspector_details'].append(f"❌ Delegation check failed: {str(e)}")
+        # Check delegation using shared utility
+        delegation_result = DelegationChecker.check_service_delegation(
+            service_principal='inspector2.amazonaws.com',
+            admin_account=admin_account,
+            security_account=security_account,
+            cross_account_role=cross_account_role,
+            verbose=verbose
+        )
         
+        is_delegated_to_security = delegation_result['is_delegated_to_security']
+        
+        if delegation_result['delegation_check_failed']:
+            status['delegation_status'] = 'check_failed'
+            status['errors'].extend(delegation_result['errors'])
+            status['inspector_details'].append("❌ Delegation check failed")
+            status['needs_changes'] = True
+            status['issues'].append("Could not verify Inspector delegation status")
+            status['actions'].append("Verify Organizations API permissions and try again")
+        elif is_delegated_to_security:
+            status['delegation_status'] = 'delegated'
+            status['inspector_details'].append(f"✅ Delegated to Security account: {security_account}")
+        else:
+            if delegation_result['delegation_details']:
+                # Delegated to wrong account
+                status['delegation_status'] = 'delegated_wrong'
+                other_admin_ids = [admin.get('Id') for admin in delegation_result['delegation_details']]
+                status['inspector_details'].append(f"⚠️  Inspector delegated to other account(s): {', '.join(other_admin_ids)}")
+                status['issues'].append(f"Inspector delegated to {', '.join(other_admin_ids)} instead of Security account {security_account}")
+                status['actions'].append("Remove existing delegation and delegate to Security account")
+                status['needs_changes'] = True
+            else:
+                # Not delegated
+                status['delegation_status'] = 'not_delegated'
+                status['needs_changes'] = True
+                status['issues'].append("Inspector is not delegated to Security account")
+                status['actions'].append("Delegate Inspector administration to Security account")
+                status['inspector_details'].append("❌ No delegation found - should delegate to Security account")
         # Check Inspector configuration from admin account perspective
         if is_delegated_to_security:
             try:
-                inspector_client = boto3.client('inspector2', region_name=region)
+                inspector_client = get_client('inspector2', admin_account, region, cross_account_role)
                 
                 # Check scanning status
                 scanning_response = inspector_client.batch_get_account_status()
@@ -523,7 +519,7 @@ def check_anomalous_inspector_regions(expected_regions, admin_account, security_
     
     try:
         # Get all AWS regions to check for anomalous scanning
-        ec2_client = boto3.client('ec2', region_name=expected_regions[0] if expected_regions else 'us-east-1')
+        ec2_client = get_client('ec2', admin_account, expected_regions[0] if expected_regions else 'us-east-1', 'AWSControlTowerExecution')
         regions_response = ec2_client.describe_regions()
         all_regions = [region['RegionName'] for region in regions_response['Regions']]
         
@@ -535,7 +531,7 @@ def check_anomalous_inspector_regions(expected_regions, admin_account, security_
         
         for region in unexpected_regions:
             try:
-                inspector_client = boto3.client('inspector2', region_name=region)
+                inspector_client = get_client('inspector2', admin_account, region, 'AWSControlTowerExecution')
                 
                 # Check if there's any scanning activity in this region
                 scanning_status = inspector_client.batch_get_account_status()
@@ -616,7 +612,7 @@ def check_inspector_auto_activation(regions, admin_account, security_account, cr
             inspector_client = get_client('inspector2', security_account, main_region, cross_account_role)
         
         if not inspector_client:
-            inspector_client = boto3.client('inspector2', region_name=main_region)
+            inspector_client = get_client('inspector2', admin_account, main_region, cross_account_role)
         
         if inspector_client:
             try:

@@ -21,7 +21,7 @@ Automates the manual steps:
    idea to wait 24 hours to verify your control setup.
 """
 
-from .utils import printc, get_client, YELLOW, LIGHT_BLUE, GREEN, RED, GRAY, END, BOLD
+from .utils import printc, get_client, DelegationChecker, YELLOW, LIGHT_BLUE, GREEN, RED, GRAY, END, BOLD
 
 def setup_security_hub(enabled, params, dry_run, verbose):
     """
@@ -58,7 +58,7 @@ def setup_security_hub(enabled, params, dry_run, verbose):
                 printc(GRAY, "🔍 Analyzing current Security Hub configuration...")
             
             # Check delegation status
-            delegation_status = check_security_hub_delegation(admin_account, security_account, regions, verbose)
+            delegation_status = check_security_hub_delegation(admin_account, security_account, regions, cross_account_role, verbose)
             
             # Analyze configuration in each region
             overall_config = {}
@@ -80,7 +80,7 @@ def setup_security_hub(enabled, params, dry_run, verbose):
             if verbose:
                 printc(GRAY, f"\n🔍 Checking for Security Hub hubs in unexpected regions...")
             
-            anomalous_regions = check_anomalous_securityhub_regions(regions, admin_account, security_account, verbose)
+            anomalous_regions = check_anomalous_securityhub_regions(regions, admin_account, security_account, cross_account_role, verbose)
             
             if anomalous_regions:
                 printc(YELLOW, f"\n⚠️  ANOMALOUS SECURITY HUB HUBS DETECTED:")
@@ -89,11 +89,11 @@ def setup_security_hub(enabled, params, dry_run, verbose):
                     region = anomaly['region']
                     printc(YELLOW, f"  • {region}: Hub is active (not in your regions list)")
                 printc(YELLOW, f"")
-                printc(YELLOW, f"📋 ANOMALY RECOMMENDATIONS:")
+                printc(YELLOW, f"ANOMALY RECOMMENDATIONS:")
                 printc(YELLOW, f"  • Review: Determine if these hubs are intentional or configuration drift")
                 printc(YELLOW, f"  • Recommended: Disable Security Hub in these regions to control costs")
                 printc(YELLOW, f"  • Note: Adding regions to OpenSecOps requires full system redeployment")
-                printc(YELLOW, f"  💰 Cost Impact: Security Hub generates charges per region and per finding")
+                printc(YELLOW, f"  Cost Impact: Security Hub generates charges per region and per finding")
             
             # Generate comprehensive recommendations
             generate_security_hub_recommendations(delegation_status, overall_config, control_policies, params, dry_run, verbose, anomalous_regions)
@@ -117,44 +117,38 @@ import boto3
 from botocore.exceptions import ClientError
 
 
-def check_security_hub_delegation(admin_account: str, security_account: str, regions: list, verbose=False) -> dict:
-    """Check Security Hub delegation status across organization."""
+def check_security_hub_delegation(admin_account: str, security_account: str, regions: list, cross_account_role: str = 'AWSControlTowerExecution', verbose=False) -> dict:
+    """Check Security Hub delegation status across organization using shared utility."""
     if verbose:
         printc(GRAY, "🔍 Checking Security Hub delegation status...")
     
+    # Use shared delegation checker
+    delegation_result = DelegationChecker.check_service_delegation(
+        service_principal='securityhub.amazonaws.com',
+        admin_account=admin_account,
+        security_account=security_account,
+        cross_account_role=cross_account_role,
+        verbose=verbose
+    )
+    
+    # Convert to Security Hub-specific format for compatibility
     delegation_info = {
-        'is_delegated_to_security': False,
-        'delegated_admin_account': None,
+        'is_delegated_to_security': delegation_result['is_delegated_to_security'],
+        'delegated_admin_account': delegation_result['delegated_admin_account'],
+        'delegation_check_failed': delegation_result['delegation_check_failed'],
         'delegation_details': {},
-        'errors': []
+        'errors': delegation_result['errors']
     }
     
-    try:
-        # Check from any region (delegation is organization-wide)
-        orgs_client = boto3.client('organizations', region_name=regions[0])
-        
-        # Get delegated administrators for Security Hub
-        response = orgs_client.list_delegated_administrators(ServicePrincipal='securityhub.amazonaws.com')
-        delegated_admins = response.get('DelegatedAdministrators', [])
-        
-        for admin in delegated_admins:
-            admin_id = admin.get('Id')
+    # Convert delegation details to Security Hub format
+    for admin in delegation_result.get('delegation_details', []):
+        admin_id = admin.get('Id')
+        if admin_id:
             delegation_info['delegation_details'][admin_id] = {
                 'account_name': admin.get('Name', 'Unknown'),
                 'status': admin.get('Status'),
                 'joined_timestamp': admin.get('JoinedTimestamp')
             }
-            
-            if admin_id == security_account:
-                delegation_info['is_delegated_to_security'] = True
-                delegation_info['delegated_admin_account'] = admin_id
-                
-    except ClientError as e:
-        error_msg = f"Failed to check Security Hub delegation: {str(e)}"
-        delegation_info['errors'].append(error_msg)
-    except Exception as e:
-        error_msg = f"Unexpected error checking delegation: {str(e)}"
-        delegation_info['errors'].append(error_msg)
     
     return delegation_info
 
@@ -180,7 +174,7 @@ def check_security_hub_in_region(region: str, admin_account: str, security_accou
     
     try:
         # Check from admin account first, then switch to delegated if available
-        securityhub_client = boto3.client('securityhub', region_name=region)
+        securityhub_client = get_client('securityhub', admin_account, region, cross_account_role)
         
         try:
             # Get hub details
@@ -196,10 +190,10 @@ def check_security_hub_in_region(region: str, admin_account: str, security_accou
             
             if verbose:
                 status = "✅ ENABLED" if hub_config['consolidated_controls_enabled'] else "❌ DISABLED"
-                printc(GRAY, f"      🎯 Consolidated Controls: {status}")
+                printc(GRAY, f"      Consolidated Controls: {status}")
                 
                 auto_status = "❌ ENABLED (should be disabled)" if hub_config['auto_enable_controls'] else "✅ DISABLED (correct)"
-                printc(GRAY, f"      🔧 Auto Enable Controls: {auto_status}")
+                printc(GRAY, f"      Auto Enable Controls: {auto_status}")
                 
         except ClientError as e:
             if e.response['Error']['Code'] == 'InvalidAccessException':
@@ -221,7 +215,7 @@ def check_security_hub_in_region(region: str, admin_account: str, security_accou
                 hub_config['standards_subscriptions'] = standards_response.get('StandardsSubscriptions', [])
                 
                 if verbose and hub_config['standards_subscriptions']:
-                    printc(GRAY, f"      📋 Standards enabled: {len(hub_config['standards_subscriptions'])}")
+                    printc(GRAY, f"      Standards enabled: {len(hub_config['standards_subscriptions'])}")
                     for standard in hub_config['standards_subscriptions']:
                         standard_arn = standard.get('StandardsArn', 'Unknown')
                         status = standard.get('StandardsStatus', 'Unknown')
@@ -259,7 +253,7 @@ def check_security_hub_in_region(region: str, admin_account: str, security_accou
                 hub_config['member_count'] = len(members)
                 
                 if verbose:
-                    printc(GRAY, f"      👥 Member accounts: {hub_config['member_count']}")
+                    printc(GRAY, f"      Member accounts: {hub_config['member_count']}")
                     
             except ClientError as e:
                 error_msg = f"Failed to list members: {str(e)}"
@@ -501,7 +495,7 @@ def generate_security_hub_recommendations(delegation_status: dict, overall_confi
     
     # Show what would be done in dry-run mode
     if dry_run and (not is_delegated or len(enabled_regions) < len(regions) or auto_enable_issues or not findings_aggregated or has_anomalous_regions):
-        printc(LIGHT_BLUE, "\n🔮 DRY RUN - Actions that would be taken:")
+        printc(LIGHT_BLUE, "\nDRY RUN - Actions that would be taken:")
         
         if not is_delegated:
             printc(LIGHT_BLUE, "  • Delegate Security Hub to security administration account")
@@ -528,7 +522,7 @@ def show_security_hub_deactivation_analysis(admin_account: str, security_account
     printc(LIGHT_BLUE, "\n🔍 SECURITY HUB DEACTIVATION ANALYSIS")
     
     # Quick check of current state
-    delegation_status = check_security_hub_delegation(admin_account, security_account, regions, verbose)
+    delegation_status = check_security_hub_delegation(admin_account, security_account, regions, cross_account_role, verbose)
     
     if delegation_status.get('is_delegated_to_security'):
         printc(YELLOW, f"⚠️  Security Hub is currently delegated to account {security_account}")
@@ -541,7 +535,7 @@ def show_security_hub_deactivation_analysis(admin_account: str, security_account
         enabled_regions = []
         for region in regions:
             try:
-                client = boto3.client('securityhub', region_name=region)
+                client = get_client('securityhub', admin_account, region, cross_account_role)
                 client.describe_hub()
                 enabled_regions.append(region)
             except:
@@ -566,7 +560,7 @@ def show_security_hub_deactivation_analysis(admin_account: str, security_account
             printc(GRAY, f"\n🔍 Checking all AWS regions for spurious Security Hub activation...")
         
         # Pass empty list as expected_regions so ALL regions are checked
-        anomalous_regions = check_anomalous_securityhub_regions([], admin_account, security_account, verbose)
+        anomalous_regions = check_anomalous_securityhub_regions([], admin_account, security_account, cross_account_role, verbose)
         
         if anomalous_regions:
             printc(YELLOW, f"\n⚠️  SPURIOUS SECURITY HUB ACTIVATION DETECTED:")
@@ -587,7 +581,7 @@ def show_security_hub_deactivation_analysis(admin_account: str, security_account
         else:
             printc(GREEN, "✅ Security Hub is not currently configured - no deactivation needed")
 
-def check_anomalous_securityhub_regions(expected_regions, admin_account, security_account, verbose=False):
+def check_anomalous_securityhub_regions(expected_regions, admin_account, security_account, cross_account_role=None, verbose=False):
     """
     Check for Security Hub hubs active in regions outside the expected list.
     
@@ -603,7 +597,7 @@ def check_anomalous_securityhub_regions(expected_regions, admin_account, securit
     
     try:
         # Get all AWS regions to check for anomalous hubs
-        ec2_client = boto3.client('ec2', region_name=expected_regions[0] if expected_regions else 'us-east-1')
+        ec2_client = get_client('ec2', admin_account, expected_regions[0] if expected_regions else 'us-east-1', 'AWSControlTowerExecution')
         regions_response = ec2_client.describe_regions()
         all_regions = [region['RegionName'] for region in regions_response['Regions']]
         
@@ -615,13 +609,39 @@ def check_anomalous_securityhub_regions(expected_regions, admin_account, securit
         
         for region in unexpected_regions:
             try:
-                securityhub_client = boto3.client('securityhub', region_name=region)
+                securityhub_client = get_client('securityhub', admin_account, region, 'AWSControlTowerExecution')
                 
                 # Check if Security Hub is enabled in this region
                 try:
                     hub_info = securityhub_client.describe_hub()
                     
                     # If we got here, Security Hub is active
+                    # Collect account details for better security actionability
+                    account_details = []
+                    
+                    # Add admin account details
+                    account_details.append({
+                        'account_id': admin_account,
+                        'account_status': 'ADMIN_ACCOUNT',
+                        'hub_status': 'ENABLED'
+                    })
+                    
+                    # Get member account details if any
+                    try:
+                        members_response = securityhub_client.list_members()
+                        members = members_response.get('Members', [])
+                        for member in members:
+                            account_details.append({
+                                'account_id': member.get('AccountId'),
+                                'account_status': 'MEMBER_ACCOUNT',
+                                'hub_status': member.get('MemberStatus', 'Unknown'),
+                                'invited_at': member.get('InvitedAt'),
+                                'updated_at': member.get('UpdatedAt')
+                            })
+                    except ClientError as e:
+                        if verbose:
+                            printc(GRAY, f"    (Could not get member details for {region}: {str(e)})")
+                    
                     anomalous_regions.append({
                         'region': region,
                         'hub_active': True,
@@ -629,7 +649,8 @@ def check_anomalous_securityhub_regions(expected_regions, admin_account, securit
                             'hub_arn': hub_info.get('HubArn', 'Unknown'),
                             'subscribed_at': hub_info.get('SubscribedAt', 'Unknown'),
                             'auto_enable_controls': hub_info.get('AutoEnableControls', False)
-                        }
+                        },
+                        'account_details': account_details
                     })
                     
                     if verbose:

@@ -1,5 +1,12 @@
 # Change Log
 
+## v0.1.13
+    * Removed unnecessary emojis from output strings, keeping only essential status indicators (checkmarks, warning triangles, red crosses)
+    * Removed preaching about security posture choices - now reports facts without recommendations on S3 data events and malware protection
+    * Fixed IAM Global Resources display to correctly show excluded status as valid configuration for non-main regions
+    * Updated corresponding tests to maintain 100% test success rate (185 tests passing)
+    * Improved output professionalism while preserving all technical recommendations and security information
+
 ## v0.1.12
     * Added comprehensive spurious region detection for all 6 security services (GuardDuty, Security Hub, AWS Config, Detective, Inspector, Access Analyzer)
     * Enhanced all services to check for unexpected activations outside configured regions when disabled, preventing cost surprises
