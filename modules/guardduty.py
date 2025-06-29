@@ -27,9 +27,9 @@ def setup_guardduty(enabled, params, dry_run, verbose):
         
         if enabled == 'No':
             # WARNING when someone tries to disable GuardDuty
-            printc(RED, "\n" + "🚨" * 15)
-            printc(RED, "🚨 WARNING: GuardDuty Disable Requested 🚨")
-            printc(RED, "🚨" * 15)
+            printc(RED, "\n" + "" * 15)
+            printc(RED, " WARNING: GuardDuty Disable Requested ")
+            printc(RED, "" * 15)
             printc(RED, "")
             printc(RED, "GuardDuty is a CRITICAL security service that:")
             printc(RED, "• Provides threat detection and monitoring")
@@ -39,7 +39,7 @@ def setup_guardduty(enabled, params, dry_run, verbose):
             printc(RED, "⛔ DISABLING GUARDDUTY REDUCES SECURITY POSTURE")
             printc(RED, "")
             printc(RED, "GuardDuty setup SKIPPED due to enabled=No parameter.")
-            printc(RED, "🚨" * 15)
+            printc(RED, "" * 15)
             
             # Check for spurious GuardDuty activations in ALL regions (since service is disabled)
             regions = params['regions']
@@ -48,7 +48,7 @@ def setup_guardduty(enabled, params, dry_run, verbose):
             cross_account_role = params['cross_account_role']
             
             if verbose:
-                printc(GRAY, f"\n🔍 Checking all AWS regions for spurious GuardDuty activation...")
+                printc(GRAY, f"\n Checking all AWS regions for spurious GuardDuty activation...")
             
             # Pass empty list as expected_regions so ALL regions are checked
             anomalous_regions = check_anomalous_guardduty_regions([], admin_account, security_account, cross_account_role, verbose)
@@ -63,13 +63,13 @@ def setup_guardduty(enabled, params, dry_run, verbose):
                 for anomaly in anomalous_regions:
                     region = anomaly['region']
                     detector_count = anomaly['detector_count']
-                    printc(YELLOW, f"    📍 {region}: {detector_count} detector(s) enabled")
+                    printc(YELLOW, f"     {region}: {detector_count} detector(s) enabled")
                     for detector_detail in anomaly['detector_details']:
                         status = detector_detail['status']
                         frequency = detector_detail['finding_frequency']
-                        printc(YELLOW, f"      🔍 Detector: {status} ({frequency})")
+                        printc(YELLOW, f"       Detector: {status} ({frequency})")
                 printc(YELLOW, f"")
-                printc(YELLOW, f"📋 SPURIOUS ACTIVATION RECOMMENDATIONS:")
+                printc(YELLOW, f" SPURIOUS ACTIVATION RECOMMENDATIONS:")
                 printc(YELLOW, f"  • Review: These detectors may be configuration drift or forgotten resources")
                 printc(YELLOW, f"  • Recommended: Disable GuardDuty detectors in these regions to control costs")
                 printc(YELLOW, f"  • Note: GuardDuty generates charges per region and per finding")
@@ -96,7 +96,7 @@ def setup_guardduty(enabled, params, dry_run, verbose):
         
         for region in regions:
             if verbose:
-                printc(GRAY, f"\n🔍 Checking GuardDuty in region {region}...")
+                printc(GRAY, f"\n Checking GuardDuty in region {region}...")
             
             region_status = check_guardduty_in_region(region, admin_account, security_account, cross_account_role, verbose)
             guardduty_status[region] = region_status
@@ -117,7 +117,7 @@ def setup_guardduty(enabled, params, dry_run, verbose):
         
         # Step 2: Check for anomalous GuardDuty detectors in unexpected regions
         if verbose:
-            printc(GRAY, f"\n🔍 Checking for GuardDuty detectors in unexpected regions...")
+            printc(GRAY, f"\n Checking for GuardDuty detectors in unexpected regions...")
         
         anomalous_regions = check_anomalous_guardduty_regions(regions, admin_account, security_account, cross_account_role, verbose)
         
@@ -130,11 +130,11 @@ def setup_guardduty(enabled, params, dry_run, verbose):
                 detector_count = anomaly['detector_count']
                 printc(YELLOW, f"  • {region}: {detector_count} detector(s) enabled (not in your regions list)")
             printc(YELLOW, f"")
-            printc(YELLOW, f"📋 ANOMALY RECOMMENDATIONS:")
+            printc(YELLOW, f" ANOMALY RECOMMENDATIONS:")
             printc(YELLOW, f"  • Review: Determine if these detectors are intentional or configuration drift")
             printc(YELLOW, f"  • Recommended: Disable GuardDuty detectors in these regions to control costs")
             printc(YELLOW, f"  • Note: Adding regions to OpenSecOps requires full system redeployment")
-            printc(YELLOW, f"  💰 Cost Impact: GuardDuty generates charges per region and per finding")
+            printc(YELLOW, f"   Cost Impact: GuardDuty generates charges per region and per finding")
         
         # Report findings and take action
         if not any_changes_needed:
@@ -143,9 +143,9 @@ def setup_guardduty(enabled, params, dry_run, verbose):
             
             # Show detailed configuration for each region ONLY when verbose
             if verbose:
-                printc(LIGHT_BLUE, "\n📋 Current GuardDuty Configuration:")
+                printc(LIGHT_BLUE, "\n Current GuardDuty Configuration:")
                 for region, status in guardduty_status.items():
-                    printc(LIGHT_BLUE, f"\n🌍 Region: {region}")
+                    printc(LIGHT_BLUE, f"\n Region: {region}")
                     if status['guardduty_enabled']:
                         for detail in status['guardduty_details']:
                             printc(GRAY, f"  {detail}")
@@ -155,7 +155,7 @@ def setup_guardduty(enabled, params, dry_run, verbose):
             return True
         
         # Some changes needed
-        printc(YELLOW, "⚠️  GuardDuty needs configuration in some regions:")
+        printc(YELLOW, "GuardDuty configuration status:")
         
         for region, status in guardduty_status.items():
             if status['needs_changes']:
@@ -163,7 +163,7 @@ def setup_guardduty(enabled, params, dry_run, verbose):
                     printc(YELLOW, f"  • {region}: {issue}")
         
         if dry_run:
-            printc(YELLOW, "\n🔍 DRY RUN: Would make the following changes:")
+            printc(YELLOW, "\n DRY RUN: Would make the following changes:")
             for region, status in guardduty_status.items():
                 if status['needs_changes']:
                     for action in status['actions']:
@@ -320,7 +320,7 @@ def check_guardduty_in_region(region, admin_account, security_account, cross_acc
             security_account != admin_account):
             
             if verbose:
-                printc(GRAY, f"    🔄 Switching to delegated admin account for complete data...")
+                printc(GRAY, f"     Switching to delegated admin account for complete data...")
             
             # Create cross-account client to security account
             delegated_client = get_client('guardduty', security_account, region, cross_account_role)
@@ -367,13 +367,22 @@ def check_guardduty_in_region(region, admin_account, security_account, cross_acc
                             
                             # Check data sources configuration  
                             if datasources:
-                                s3_logs = datasources.get('S3Logs', {}).get('AutoEnable', False)
-                                kubernetes = datasources.get('Kubernetes', {}).get('AutoEnable', False) 
-                                malware = datasources.get('MalwareProtection', {}).get('AutoEnable', False)
+                                # Define all GuardDuty data sources with their display names
+                                data_source_configs = {
+                                    'S3Logs': 'S3 Data Events',
+                                    'Kubernetes': 'Kubernetes Audit Logs', 
+                                    'MalwareProtection': 'Malware Protection',
+                                    'RdsProtection': 'RDS Protection',
+                                    'LambdaNetworkActivity': 'Lambda Network Activity',
+                                    'EksRuntimeMonitoring': 'EKS Runtime Monitoring',
+                                    'EbsMalwareProtection': 'EBS Malware Protection'
+                                }
                                 
-                                status['guardduty_details'].append(f"   S3 Data Events: {s3_logs}")
-                                status['guardduty_details'].append(f"   Kubernetes Audit Logs: {kubernetes}")
-                                status['guardduty_details'].append(f"   Malware Protection: {malware}")
+                                # Check each data source and report status
+                                for source_key, display_name in data_source_configs.items():
+                                    is_enabled = datasources.get(source_key, {}).get('AutoEnable', False)
+                                    enabled_text = "enabled" if is_enabled else "disabled"
+                                    status['guardduty_details'].append(f"   {display_name}: {enabled_text}")
                                 
                         except ClientError as e:
                             error_msg = f"Organization configuration check failed: {str(e)}"
@@ -406,7 +415,7 @@ def check_guardduty_in_region(region, admin_account, security_account, cross_acc
                                 else:
                                     # Case 3: Weird configurations - mixed member states
                                     if enabled_members > 0:
-                                        status['guardduty_details'].append(f"   📊 Enabled Members: {enabled_members}")
+                                        status['guardduty_details'].append(f"    Enabled Members: {enabled_members}")
                                     
                                     if invited_members > 0:
                                         status['guardduty_details'].append(f"   ⚠️  Invited Members: {invited_members}")
@@ -421,13 +430,13 @@ def check_guardduty_in_region(region, admin_account, security_account, cross_acc
                                         status['actions'].append("Enable disabled member accounts")
                                     
                                     if paused_members > 0:
-                                        status['guardduty_details'].append(f"   ⏸️  Paused Members: {paused_members}")
+                                        status['guardduty_details'].append(f"     Paused Members: {paused_members}")
                                         status['needs_changes'] = True
                                         status['issues'].append(f"{paused_members} member accounts are paused")
                                         status['actions'].append("Resume paused member accounts")
                                     
                                     if removed_members > 0:
-                                        status['guardduty_details'].append(f"   🗑️  Removed Members: {removed_members}")
+                                        status['guardduty_details'].append(f"     Removed Members: {removed_members}")
                                         status['issues'].append(f"{removed_members} member accounts are in 'Removed' status")
                                         status['actions'].append("Clean up removed member accounts or re-invite if needed")
                                         

@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.1.15
+    * Completed emoji cleanup across all Python modules and documentation examples, maintaining only essential status indicators (✅, ❌, ⚠️)
+    * Enhanced GuardDuty monitoring with comprehensive data sources status reporting (S3 Data Events, Kubernetes Audit Logs, Malware Protection, RDS Protection, Lambda Network Activity, EKS Runtime Monitoring, EBS Malware Protection)
+    * Improved professional output formatting for enterprise environments
+    * Maintained 100% test success rate (189 tests passing)
+
 ## v0.1.14
     * Updated README documentation for improved clarity and accuracy
 

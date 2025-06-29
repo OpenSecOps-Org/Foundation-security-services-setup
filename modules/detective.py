@@ -68,7 +68,7 @@ def setup_detective(enabled, params, dry_run, verbose):
                             detective_is_active = True
                             active_graphs.extend(graphs)
                             if verbose:
-                                printc(GRAY, f"   📊 Active graphs in {region}: {len(graphs)}")
+                                printc(GRAY, f"    Active graphs in {region}: {len(graphs)}")
                             
                             # Count members in graphs
                             for graph in graphs:
@@ -94,7 +94,7 @@ def setup_detective(enabled, params, dry_run, verbose):
                 printc(YELLOW, f"")
                 
                 if dry_run:
-                    printc(YELLOW, f"🔍 DRY RUN: Would deactivate Detective:")
+                    printc(YELLOW, f" DRY RUN: Would deactivate Detective:")
                     for region in regions:
                         printc(YELLOW, f"  • Delete Detective behavior graph in {region}")
                         printc(YELLOW, f"  • Remove member account invitations in {region}")
@@ -102,7 +102,7 @@ def setup_detective(enabled, params, dry_run, verbose):
                     printc(YELLOW, f"  • Remove Detective delegation from Security account ({security_account})")
                     printc(YELLOW, f"  • This will stop all security investigation data collection")
                 else:
-                    printc(YELLOW, f"📋 RECOMMENDED DEACTIVATION STEPS:")
+                    printc(YELLOW, f" RECOMMENDED DEACTIVATION STEPS:")
                     printc(YELLOW, f"  1. Remove member accounts from Detective behavior graphs")
                     printc(YELLOW, f"  2. Disable automatic member enrollment for new accounts")
                     printc(YELLOW, f"  3. Delete Detective behavior graphs in all regions")
@@ -111,14 +111,14 @@ def setup_detective(enabled, params, dry_run, verbose):
                     printc(YELLOW, f"  ⚠️  Note: All investigation data and findings history will be lost")
                     
             elif detective_delegation_exists:
-                printc(YELLOW, f"\n💡 DELEGATION CLEANUP SUGGESTION:")
+                printc(YELLOW, f"\n DELEGATION CLEANUP SUGGESTION:")
                 printc(YELLOW, f"Detective is delegated to Security account ({security_account}) but not active")
                 printc(YELLOW, f"Since Detective is disabled, consider removing the delegation to clean up")
                 printc(YELLOW, f"This will remove Detective administrative permissions from the Security account")
             else:
                 # Check for spurious Detective activations in ALL regions (since service is disabled)
                 if verbose:
-                    printc(GRAY, f"   🔍 Checking all AWS regions for spurious Detective activation...")
+                    printc(GRAY, f"    Checking all AWS regions for spurious Detective activation...")
                 
                 # Pass empty list as expected_regions so ALL regions are checked
                 anomalous_regions = check_anomalous_detective_regions([], admin_account, security_account, cross_account_role, verbose)
@@ -133,12 +133,12 @@ def setup_detective(enabled, params, dry_run, verbose):
                     for anomaly in anomalous_regions:
                         region = anomaly['region']
                         graph_count = anomaly['graph_count']
-                        printc(YELLOW, f"    📍 {region}: {graph_count} graph(s) active")
+                        printc(YELLOW, f"     {region}: {graph_count} graph(s) active")
                         for graph_detail in anomaly['graph_details']:
                             member_count = graph_detail['member_count']
-                            printc(YELLOW, f"      📊 Graph: {member_count} member(s)")
+                            printc(YELLOW, f"       Graph: {member_count} member(s)")
                     printc(YELLOW, f"")
-                    printc(YELLOW, f"📋 SPURIOUS ACTIVATION RECOMMENDATIONS:")
+                    printc(YELLOW, f" SPURIOUS ACTIVATION RECOMMENDATIONS:")
                     printc(YELLOW, f"  • Review: These graphs may be configuration drift or forgotten resources")
                     printc(YELLOW, f"  • Recommended: Disable Detective graphs in these regions to control costs")
                     printc(YELLOW, f"  • Note: Detective generates charges based on data ingestion volume per region")
@@ -162,7 +162,7 @@ def setup_detective(enabled, params, dry_run, verbose):
         
         # Step 1: Check GuardDuty dependency (Detective requires GuardDuty)
         if verbose:
-            printc(GRAY, f"\n🔍 Checking GuardDuty prerequisite...")
+            printc(GRAY, f"\n Checking GuardDuty prerequisite...")
         
         guardduty_status = check_guardduty_prerequisite(admin_account, security_account, cross_account_role, regions, verbose)
         
@@ -173,7 +173,7 @@ def setup_detective(enabled, params, dry_run, verbose):
             printc(YELLOW, f"")
             printc(YELLOW, f"Current GuardDuty status: {guardduty_status}")
             printc(YELLOW, f"")
-            printc(GRAY, f"📋 NOTE: Proceeding with Detective configuration analysis...")
+            printc(GRAY, f" NOTE: Proceeding with Detective configuration analysis...")
             printc(GRAY, f"  • Detective delegation and setup can be configured independently")
             printc(GRAY, f"  • GuardDuty should be configured for full Detective functionality")
             if verbose:
@@ -185,7 +185,7 @@ def setup_detective(enabled, params, dry_run, verbose):
         
         for region in regions:
             if verbose:
-                printc(GRAY, f"\n🔍 Checking Detective in region {region}...")
+                printc(GRAY, f"\n Checking Detective in region {region}...")
             
             region_status = check_detective_in_region(region, admin_account, security_account, cross_account_role, verbose)
             detective_status[region] = region_status
@@ -206,7 +206,7 @@ def setup_detective(enabled, params, dry_run, verbose):
         
         # Step 2: Check for anomalous Detective graphs in unexpected regions
         if verbose:
-            printc(GRAY, f"\n🔍 Checking for Detective graphs in unexpected regions...")
+            printc(GRAY, f"\n Checking for Detective graphs in unexpected regions...")
         
         anomalous_regions = check_anomalous_detective_regions(regions, admin_account, security_account, cross_account_role, verbose)
         
@@ -232,9 +232,9 @@ def setup_detective(enabled, params, dry_run, verbose):
             
             # Show detailed configuration for each region ONLY when verbose
             if verbose:
-                printc(LIGHT_BLUE, "\n📋 Current Amazon Detective Configuration:")
+                printc(LIGHT_BLUE, "\n Current Amazon Detective Configuration:")
                 for region, status in detective_status.items():
-                    printc(LIGHT_BLUE, f"\n🌍 Region: {region}")
+                    printc(LIGHT_BLUE, f"\n Region: {region}")
                     if status['detective_enabled']:
                         for detail in status['detective_details']:
                             printc(GRAY, f"  {detail}")
@@ -253,11 +253,11 @@ def setup_detective(enabled, params, dry_run, verbose):
                 missing_regions.append(region)
         
         if missing_regions:
-            printc(YELLOW, f"\n📋 DETECTIVE CONFIGURATION NEEDED:")
+            printc(YELLOW, f"\n DETECTIVE CONFIGURATION NEEDED:")
             for region in missing_regions:
                 status = detective_status[region]
                 
-                printc(YELLOW, f"\n  🌍 Region: {region}")
+                printc(YELLOW, f"\n   Region: {region}")
                 
                 if status['delegation_status'] == 'not_delegated':
                     printc(YELLOW, f"    • Missing: Detective delegation to Security account")
@@ -278,7 +278,7 @@ def setup_detective(enabled, params, dry_run, verbose):
         
         # Show what actions would be taken
         if dry_run:
-            printc(YELLOW, "\n🔍 DRY RUN: Recommended actions to fix Detective setup:")
+            printc(YELLOW, "\n DRY RUN: Recommended actions to fix Detective setup:")
             
             action_count = 1
             for region in missing_regions:
@@ -306,7 +306,7 @@ def setup_detective(enabled, params, dry_run, verbose):
                     printc(YELLOW, f"  {action_count}. Enable automatic member invitation for new accounts in {region}")
                     action_count += 1
         else:
-            printc(YELLOW, "\n🔧 Making Detective changes...")
+            printc(YELLOW, "\n Making Detective changes...")
             # TODO: Implement actual Detective changes
             for region in missing_regions:
                 printc(YELLOW, f"  TODO: Configure Detective in {region}")
@@ -445,7 +445,7 @@ def check_detective_in_region(region, admin_account, security_account, cross_acc
                     graph_arn = graph.get('Arn')
                     graph_created = graph.get('CreatedTime')
                     
-                    status['detective_details'].append(f"   📝 Graph ARN: {graph_arn}")
+                    status['detective_details'].append(f"    Graph ARN: {graph_arn}")
                     status['detective_details'].append(f"      Created: {graph_created}")
                     
                     # Get member accounts for this graph
@@ -499,7 +499,7 @@ def check_detective_in_region(region, admin_account, security_account, cross_acc
             security_account != admin_account):
             
             if verbose:
-                printc(GRAY, f"    🔄 Switching to delegated admin account for complete data...")
+                printc(GRAY, f"     Switching to delegated admin account for complete data...")
             
             # Create cross-account client to security account
             delegated_client = get_client('detective', security_account, region, cross_account_role)
@@ -519,7 +519,7 @@ def check_detective_in_region(region, admin_account, security_account, cross_acc
                         
                         for graph in all_delegated_graphs:
                             graph_arn = graph.get('Arn')
-                            status['detective_details'].append(f"   📝 Delegated Graph: {graph_arn}")
+                            status['detective_details'].append(f"    Delegated Graph: {graph_arn}")
                             
                             # Get comprehensive member data from delegated admin
                             try:
@@ -534,10 +534,10 @@ def check_detective_in_region(region, admin_account, security_account, cross_acc
                                     enabled_members = [m for m in all_members if m.get('Status') == 'ENABLED']
                                     invited_members = [m for m in all_members if m.get('Status') == 'INVITED']
                                     
-                                    status['detective_details'].append(f"      📊 Total Members: {len(all_members)}")
+                                    status['detective_details'].append(f"       Total Members: {len(all_members)}")
                                     status['detective_details'].append(f"      ✅ Active Members: {len(enabled_members)}")
                                     if invited_members:
-                                        status['detective_details'].append(f"      📨 Pending Invitations: {len(invited_members)}")
+                                        status['detective_details'].append(f"       Pending Invitations: {len(invited_members)}")
                                 else:
                                     status['detective_details'].append(f"      ❌ No member accounts found")
                                     

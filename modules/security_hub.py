@@ -55,7 +55,7 @@ def setup_security_hub(enabled, params, dry_run, verbose):
         if enabled == 'Yes':
             # Perform comprehensive Security Hub discovery and analysis
             if verbose:
-                printc(GRAY, "🔍 Analyzing current Security Hub configuration...")
+                printc(GRAY, " Analyzing current Security Hub configuration...")
             
             # Check delegation status
             delegation_status = check_security_hub_delegation(admin_account, security_account, regions, cross_account_role, verbose)
@@ -64,7 +64,7 @@ def setup_security_hub(enabled, params, dry_run, verbose):
             overall_config = {}
             for region in regions:
                 if verbose:
-                    printc(GRAY, f"🌍 Checking Security Hub in region: {region}")
+                    printc(GRAY, f" Checking Security Hub in region: {region}")
                 
                 config = check_security_hub_in_region(region, admin_account, security_account, cross_account_role, verbose)
                 overall_config[region] = config
@@ -73,12 +73,12 @@ def setup_security_hub(enabled, params, dry_run, verbose):
             control_policies = {}
             if delegation_status.get('is_delegated_to_security', False):
                 if verbose:
-                    printc(GRAY, "📋 Analyzing control policies...")
+                    printc(GRAY, " Analyzing control policies...")
                 control_policies = check_control_policies(regions, admin_account, security_account, cross_account_role, verbose)
             
             # Step 2: Check for anomalous Security Hub hubs in unexpected regions
             if verbose:
-                printc(GRAY, f"\n🔍 Checking for Security Hub hubs in unexpected regions...")
+                printc(GRAY, f"\n Checking for Security Hub hubs in unexpected regions...")
             
             anomalous_regions = check_anomalous_securityhub_regions(regions, admin_account, security_account, cross_account_role, verbose)
             
@@ -101,7 +101,7 @@ def setup_security_hub(enabled, params, dry_run, verbose):
         else:
             # Security Hub disabled - show deactivation analysis
             if verbose:
-                printc(GRAY, "🔍 Analyzing Security Hub for potential deactivation...")
+                printc(GRAY, " Analyzing Security Hub for potential deactivation...")
             
             show_security_hub_deactivation_analysis(admin_account, security_account, regions, cross_account_role, verbose)
             
@@ -120,7 +120,7 @@ from botocore.exceptions import ClientError
 def check_security_hub_delegation(admin_account: str, security_account: str, regions: list, cross_account_role: str = 'AWSControlTowerExecution', verbose=False) -> dict:
     """Check Security Hub delegation status across organization using shared utility."""
     if verbose:
-        printc(GRAY, "🔍 Checking Security Hub delegation status...")
+        printc(GRAY, " Checking Security Hub delegation status...")
     
     # Use shared delegation checker
     delegation_result = DelegationChecker.check_service_delegation(
@@ -156,7 +156,7 @@ def check_security_hub_delegation(admin_account: str, security_account: str, reg
 def check_security_hub_in_region(region: str, admin_account: str, security_account: str, cross_account_role: str, verbose=False) -> dict:
     """Check Security Hub configuration in a specific region."""
     if verbose:
-        printc(GRAY, f"    🌍 Analyzing Security Hub in region: {region}")
+        printc(GRAY, f"     Analyzing Security Hub in region: {region}")
     
     hub_config = {
         'region': region,
@@ -277,7 +277,7 @@ def check_security_hub_in_region(region: str, admin_account: str, security_accou
                         if verbose:
                             mode = aggregator.get('RegionLinkingMode', 'Unknown')
                             regions_count = len(aggregator.get('Regions', []))
-                            printc(GRAY, f"      🔄 Finding Aggregation: {mode} ({regions_count} regions)")
+                            printc(GRAY, f"       Finding Aggregation: {mode} ({regions_count} regions)")
                 else:
                     if verbose:
                         printc(YELLOW, f"      ⚠️  No finding aggregators configured")
@@ -296,7 +296,7 @@ def check_security_hub_in_region(region: str, admin_account: str, security_accou
 def check_control_policies(regions: list, admin_account: str, security_account: str, cross_account_role: str, verbose=False) -> dict:
     """Check Security Hub control policies and configuration policy associations."""
     if verbose:
-        printc(GRAY, "📋 Analyzing control policies and organizational assignments...")
+        printc(GRAY, " Analyzing control policies and organizational assignments...")
     
     policies_data = {
         'configuration_policies': [],
@@ -329,7 +329,7 @@ def check_control_policies(regions: list, admin_account: str, security_account: 
             policies_data['association_count'] = len(associations)
             
             if verbose:
-                printc(GRAY, f"    🔗 Policy associations found: {len(associations)}")
+                printc(GRAY, f"     Policy associations found: {len(associations)}")
             
             # Extract unique policy IDs from associations
             unique_policy_ids = set()
@@ -352,7 +352,7 @@ def check_control_policies(regions: list, admin_account: str, security_account: 
                     all_policies.append(policy_summary)
                     
                     if verbose:
-                        printc(GRAY, f"    📋 Found policy: {policy_summary['Name']} ({policy_id})")
+                        printc(GRAY, f"     Found policy: {policy_summary['Name']} ({policy_id})")
                     
                 except Exception as e:
                     if verbose:
@@ -367,11 +367,11 @@ def check_control_policies(regions: list, admin_account: str, security_account: 
                 if any(indicator in policy_name for indicator in ['prod', 'production']):
                     policies_data['prod_policy'] = policy
                     if verbose:
-                        printc(GRAY, f"    🏭 PROD policy identified: {policy['Name']}")
+                        printc(GRAY, f"     PROD policy identified: {policy['Name']}")
                 elif any(indicator in policy_name for indicator in ['dev', 'development', 'sandbox']):
                     policies_data['dev_policy'] = policy
                     if verbose:
-                        printc(GRAY, f"    🧪 DEV policy identified: {policy['Name']}")
+                        printc(GRAY, f"     DEV policy identified: {policy['Name']}")
                     
         except ClientError as e:
             error_msg = f"Failed to discover configuration policies: {str(e)}"
@@ -379,7 +379,7 @@ def check_control_policies(regions: list, admin_account: str, security_account: 
         
         # Analyze policy associations (already loaded above)
         if verbose and policies_data['policy_associations']:
-            printc(GRAY, f"    🔗 Analyzing {len(policies_data['policy_associations'])} policy associations...")
+            printc(GRAY, f"     Analyzing {len(policies_data['policy_associations'])} policy associations...")
             
             # Analyze associations for organizational structure
             for assoc in policies_data['policy_associations']:
@@ -402,7 +402,7 @@ def check_control_policies(regions: list, admin_account: str, security_account: 
                         'association_type': association_type
                     }
                     if verbose:
-                        printc(GRAY, f"      🌳 Root OU policy: {policy_name} → {target.get('RootId')}")
+                        printc(GRAY, f"       Root OU policy: {policy_name} → {target.get('RootId')}")
                 elif 'OrganizationalUnitId' in target:
                     ou_policy = {
                         'policy_id': policy_id,
@@ -412,7 +412,7 @@ def check_control_policies(regions: list, admin_account: str, security_account: 
                     }
                     policies_data['ou_policies'].append(ou_policy)
                     if verbose:
-                        printc(GRAY, f"      🏢 OU policy: {policy_name} → {target.get('OrganizationalUnitId')}")
+                        printc(GRAY, f"       OU policy: {policy_name} → {target.get('OrganizationalUnitId')}")
             
     except Exception as e:
         error_msg = f"Unexpected error checking control policies: {str(e)}"
@@ -519,7 +519,7 @@ def generate_security_hub_recommendations(delegation_status: dict, overall_confi
 
 def show_security_hub_deactivation_analysis(admin_account: str, security_account: str, regions: list, cross_account_role: str, verbose: bool):
     """Show Security Hub deactivation analysis when service is disabled."""
-    printc(LIGHT_BLUE, "\n🔍 SECURITY HUB DEACTIVATION ANALYSIS")
+    printc(LIGHT_BLUE, "\n SECURITY HUB DEACTIVATION ANALYSIS")
     
     # Quick check of current state
     delegation_status = check_security_hub_delegation(admin_account, security_account, regions, cross_account_role, verbose)
@@ -544,7 +544,7 @@ def show_security_hub_deactivation_analysis(admin_account: str, security_account
         if enabled_regions:
             printc(YELLOW, f"  • Active Security Hub configuration in {len(enabled_regions)} regions: {', '.join(enabled_regions)}")
             
-        printc(GRAY, "\n💡 To properly deactivate Security Hub:")
+        printc(GRAY, "\n To properly deactivate Security Hub:")
         printc(GRAY, "  1. Document current control policies and organizational assignments")
         printc(GRAY, "  2. Export critical findings and compliance reports")
         printc(GRAY, "  3. Remove policy associations from organizational units")
@@ -557,7 +557,7 @@ def show_security_hub_deactivation_analysis(admin_account: str, security_account
     else:
         # Check for spurious Security Hub activations in ALL regions (since service is disabled)
         if verbose:
-            printc(GRAY, f"\n🔍 Checking all AWS regions for spurious Security Hub activation...")
+            printc(GRAY, f"\n Checking all AWS regions for spurious Security Hub activation...")
         
         # Pass empty list as expected_regions so ALL regions are checked
         anomalous_regions = check_anomalous_securityhub_regions([], admin_account, security_account, cross_account_role, verbose)
@@ -574,7 +574,7 @@ def show_security_hub_deactivation_analysis(admin_account: str, security_account
                 auto_enable = "auto-enable" if hub_details.get('auto_enable_controls', False) else "manual controls"
                 printc(YELLOW, f"    📍 {region}: Hub active ({auto_enable})")
             printc(YELLOW, f"")
-            printc(YELLOW, f"📋 SPURIOUS ACTIVATION RECOMMENDATIONS:")
+            printc(YELLOW, f" SPURIOUS ACTIVATION RECOMMENDATIONS:")
             printc(YELLOW, f"  • Review: These hubs may be configuration drift or forgotten resources")
             printc(YELLOW, f"  • Recommended: Disable Security Hub in these regions to control costs")
             printc(YELLOW, f"  • Note: Security Hub generates charges per region and per finding")

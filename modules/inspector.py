@@ -70,12 +70,12 @@ def setup_inspector(enabled, params, dry_run, verbose):
                 all_regions = [region['RegionName'] for region in regions_response['Regions']]
                 
                 if verbose:
-                    printc(GRAY, f"   🔍 Checking all {len(all_regions)} AWS regions for spurious Inspector activation...")
+                    printc(GRAY, f"    Checking all {len(all_regions)} AWS regions for spurious Inspector activation...")
             except Exception:
                 # Fallback to configured regions if we can't get all regions
                 all_regions = regions
                 if verbose:
-                    printc(GRAY, f"   🔍 Checking configured regions for Inspector activation...")
+                    printc(GRAY, f"    Checking configured regions for Inspector activation...")
             
             for region in all_regions:
                 try:
@@ -114,7 +114,7 @@ def setup_inspector(enabled, params, dry_run, verbose):
                         })
                         if verbose:
                             status = "configured" if is_configured_region else "UNEXPECTED"
-                            printc(GRAY, f"   🔍 Active scanning in {region}: {region_scan_types} types ({status})")
+                            printc(GRAY, f"    Active scanning in {region}: {region_scan_types} types ({status})")
                             for account in account_details:
                                 account_id = account['account_id']
                                 enabled_types = ', '.join(account['enabled_scan_types'])
@@ -148,11 +148,11 @@ def setup_inspector(enabled, params, dry_run, verbose):
                         region = region_info['region']
                         scan_types = region_info['scan_types']
                         accounts = region_info.get('account_details', [])
-                        printc(YELLOW, f"    📍 {region} ({scan_types} scan types):")
+                        printc(YELLOW, f"     {region} ({scan_types} scan types):")
                         for account in accounts:
                             account_id = account['account_id']
                             enabled_types = ', '.join(account['enabled_scan_types'])
-                            printc(YELLOW, f"      🔹 Account {account_id}: {enabled_types}")
+                            printc(YELLOW, f"       Account {account_id}: {enabled_types}")
                 
                 if unexpected_regions:
                     printc(YELLOW, f"  • {len(unexpected_regions)} UNEXPECTED region(s) with active scanning:")
@@ -161,11 +161,11 @@ def setup_inspector(enabled, params, dry_run, verbose):
                         region = region_info['region']
                         scan_types = region_info['scan_types']
                         accounts = region_info.get('account_details', [])
-                        printc(YELLOW, f"    📍 {region} ({scan_types} scan types):")
+                        printc(YELLOW, f"     {region} ({scan_types} scan types):")
                         for account in accounts:
                             account_id = account['account_id']
                             enabled_types = ', '.join(account['enabled_scan_types'])
-                            printc(YELLOW, f"      🔹 Account {account_id}: {enabled_types}")
+                            printc(YELLOW, f"       Account {account_id}: {enabled_types}")
                 
                 printc(YELLOW, f"  • {total_scan_types_enabled} scan type(s) enabled (ECR/EC2/Lambda)")
                 if total_members > 0:
@@ -177,25 +177,25 @@ def setup_inspector(enabled, params, dry_run, verbose):
                 printc(YELLOW, f"")
                 
                 if dry_run:
-                    printc(YELLOW, f"🔍 DRY RUN: Would deactivate Inspector:")
+                    printc(YELLOW, f" DRY RUN: Would deactivate Inspector:")
                     for region_info in active_scanning_regions:
                         region = region_info['region']
                         scan_types = region_info['scan_types']
                         is_configured = region_info['is_configured']
                         accounts = region_info.get('account_details', [])
                         status = "configured" if is_configured else "UNEXPECTED"
-                        printc(YELLOW, f"  📍 {region} ({scan_types} scan types, {status}):")
+                        printc(YELLOW, f"   {region} ({scan_types} scan types, {status}):")
                         for account in accounts:
                             account_id = account['account_id']
                             enabled_types = ', '.join(account['enabled_scan_types'])
-                            printc(YELLOW, f"    🔹 Disable {enabled_types} in account {account_id}")
+                            printc(YELLOW, f"     Disable {enabled_types} in account {account_id}")
                         printc(YELLOW, f"    • Remove member account invitations in {region}")
                         printc(YELLOW, f"    • Disable automatic member enrollment in {region}")
                     if inspector_delegation_exists:
                         printc(YELLOW, f"  • Remove Inspector delegation from Security account ({security_account})")
                     printc(YELLOW, f"  • This will stop all vulnerability scanning and cost generation")
                 else:
-                    printc(YELLOW, f"📋 RECOMMENDED DEACTIVATION STEPS:")
+                    printc(YELLOW, f" RECOMMENDED DEACTIVATION STEPS:")
                     printc(YELLOW, f"  1. Disable vulnerability scanning (ECR, EC2, Lambda) in all regions")
                     if inspector_delegation_exists:
                         printc(YELLOW, f"  2. Remove member accounts from Inspector organization")
@@ -205,7 +205,7 @@ def setup_inspector(enabled, params, dry_run, verbose):
                     else:
                         printc(YELLOW, f"  2. Disable Inspector scanning directly in each region (no delegation to remove)")
                         printc(YELLOW, f"  3. This will stop vulnerability scanning and cost generation")
-                    printc(YELLOW, f"  💰 Note: This will eliminate Inspector scanning costs but remove vulnerability detection")
+                    printc(YELLOW, f"   Note: This will eliminate Inspector scanning costs but remove vulnerability detection")
                     
             elif inspector_delegation_exists:
                 printc(YELLOW, f"\n💡 DELEGATION CLEANUP SUGGESTION:")
@@ -232,7 +232,7 @@ def setup_inspector(enabled, params, dry_run, verbose):
         
         # Step 1: Check for anomalous Inspector scanning in unexpected regions
         if verbose:
-            printc(GRAY, f"\n🔍 Checking for Inspector scanning in unexpected regions...")
+            printc(GRAY, f"\n Checking for Inspector scanning in unexpected regions...")
         
         anomalous_regions = check_anomalous_inspector_regions(regions, admin_account, security_account, verbose)
         
@@ -244,11 +244,11 @@ def setup_inspector(enabled, params, dry_run, verbose):
                 scan_types = anomaly['scan_types_enabled']
                 printc(YELLOW, f"  • {region}: {scan_types} scan type(s) enabled (not in your regions list)")
             printc(YELLOW, f"")
-            printc(YELLOW, f"📋 ANOMALY RECOMMENDATIONS:")
+            printc(YELLOW, f" ANOMALY RECOMMENDATIONS:")
             printc(YELLOW, f"  • Review: Determine if this scanning is intentional or configuration drift")
             printc(YELLOW, f"  • Recommended: Disable Inspector scanning in these regions to control costs")
             printc(YELLOW, f"  • Note: Adding regions to OpenSecOps requires full system redeployment")
-            printc(YELLOW, f"  💰 Important: Unexpected scanning generates ongoing costs that should be stopped")
+            printc(YELLOW, f"   Important: Unexpected scanning generates ongoing costs that should be stopped")
         
         # Step 2: Check Inspector delegation status per region
         inspector_status = {}
@@ -256,7 +256,7 @@ def setup_inspector(enabled, params, dry_run, verbose):
         
         for region in regions:
             if verbose:
-                printc(GRAY, f"\n🔍 Checking Inspector in region {region}...")
+                printc(GRAY, f"\n Checking Inspector in region {region}...")
             
             region_status = check_inspector_in_region(region, admin_account, security_account, cross_account_role, verbose)
             inspector_status[region] = region_status
@@ -284,7 +284,7 @@ def setup_inspector(enabled, params, dry_run, verbose):
             total_members = sum(status.get('member_count', 0) for status in inspector_status.values())
             total_scan_types = sum(status.get('scan_types_enabled', 0) for status in inspector_status.values())
             
-            printc(LIGHT_BLUE, f"\n📊 Inspector Configuration Summary:")
+            printc(LIGHT_BLUE, f"\n Inspector Configuration Summary:")
             printc(LIGHT_BLUE, f"  • Organization accounts covered: {total_members}")
             printc(LIGHT_BLUE, f"  • Scan types enabled across regions: {total_scan_types}")
             printc(LIGHT_BLUE, f"  • Regions configured: {len([r for r, s in inspector_status.items() if s['inspector_enabled']])}")
@@ -299,9 +299,9 @@ def setup_inspector(enabled, params, dry_run, verbose):
             
             # Show detailed configuration for each region ONLY when verbose
             if verbose:
-                printc(LIGHT_BLUE, "\n📋 Current Amazon Inspector Configuration:")
+                printc(LIGHT_BLUE, "\n Current Amazon Inspector Configuration:")
                 for region, status in inspector_status.items():
-                    printc(LIGHT_BLUE, f"\n🌍 Region: {region}")
+                    printc(LIGHT_BLUE, f"\n Region: {region}")
                     if status['inspector_enabled']:
                         for detail in status['inspector_details']:
                             printc(GRAY, f"  {detail}")
@@ -320,11 +320,11 @@ def setup_inspector(enabled, params, dry_run, verbose):
                 missing_regions.append(region)
         
         if missing_regions:
-            printc(YELLOW, f"\n📋 INSPECTOR CONFIGURATION NEEDED:")
+            printc(YELLOW, f"\n INSPECTOR CONFIGURATION NEEDED:")
             for region in missing_regions:
                 status = inspector_status[region]
                 
-                printc(YELLOW, f"\n  🌍 Region: {region}")
+                printc(YELLOW, f"\n   Region: {region}")
                 
                 if status['delegation_status'] == 'not_delegated':
                     printc(YELLOW, f"    • Missing: Inspector delegation to Security account")
@@ -345,7 +345,7 @@ def setup_inspector(enabled, params, dry_run, verbose):
         
         # Show what actions would be taken
         if dry_run:
-            printc(YELLOW, "\n🔍 DRY RUN: Recommended actions to fix Inspector setup:")
+            printc(YELLOW, "\n DRY RUN: Recommended actions to fix Inspector setup:")
             
             action_count = 1
             for region in missing_regions:
@@ -366,7 +366,7 @@ def setup_inspector(enabled, params, dry_run, verbose):
                     action_count += 1
                     printc(YELLOW, f"  Note: Scan types (ECR/EC2/Lambda) left disabled for cost control")
         else:
-            printc(YELLOW, "\n🔧 Making Inspector changes...")
+            printc(YELLOW, "\n Making Inspector changes...")
             # TODO: Implement actual Inspector changes
             for region in missing_regions:
                 printc(YELLOW, f"  TODO: Configure Inspector in {region}")

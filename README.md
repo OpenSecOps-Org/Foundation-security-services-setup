@@ -193,13 +193,13 @@ Checking IAM Access Analyzer setup...
     • Main region missing unused access analyzer
 ⚠️  IAM Access Analyzer needs configuration:
 
-📋 MISSING ANALYZERS:
+ MISSING ANALYZERS:
 
-  🌍 Region: eu-north-1
+   Region: eu-north-1
     • Missing: Unused Access Analyzer (main region only)
       Recommend: Create ORGANIZATION analyzer for unused access detection
 
-🔧 Making Access Analyzer changes...
+ Making Access Analyzer changes...
   TODO: Create required analyzers in eu-north-1
 ✅ IAM Access Analyzer completed successfully
 
@@ -345,44 +345,52 @@ Checking GuardDuty setup in 2 regions...
 Admin account (111111111111): Should enable GuardDuty and delegate to Security account
 Security account (222222222222): Should be delegated admin for organization
 
-🔍 Checking GuardDuty in region eu-north-1...
-    🔄 Switching to delegated admin account for complete data...
+ Checking GuardDuty in region eu-north-1...
+     Switching to delegated admin account for complete data...
   ✅ GuardDuty properly configured in eu-north-1
 
-🔍 Checking GuardDuty in region us-east-1...
-    🔄 Switching to delegated admin account for complete data...
+ Checking GuardDuty in region us-east-1...
+     Switching to delegated admin account for complete data...
   ✅ GuardDuty properly configured in us-east-1
 
-🔍 Checking for GuardDuty detectors in unexpected regions...
+ Checking for GuardDuty detectors in unexpected regions...
     Checking 15 regions outside configuration...
 ✅ GuardDuty is already properly configured in all regions
    No changes needed - existing setup meets stringent security standards
 
-📋 Current GuardDuty Configuration:
+ Current GuardDuty Configuration:
 
-🌍 Region: eu-north-1
+ Region: eu-north-1
   ✅ GuardDuty Detector: 56c909d6a827d835be29e1d8xxxxxxxx
      ✅ Status: ENABLED
      ✅ Finding Frequency: FIFTEEN_MINUTES (optimal)
   ✅ Delegated to Security account: 222222222222
   ✅ Organization Auto-Enable: True
   ✅ Auto-Enable Org Members: ALL
-     S3 Data Events: False
-     Kubernetes Audit Logs: False
-     Malware Protection: False
+     S3 Data Events: disabled
+     Kubernetes Audit Logs: disabled
+     Malware Protection: disabled
+     RDS Protection: disabled
+     Lambda Network Activity: disabled
+     EKS Runtime Monitoring: disabled
+     EBS Malware Protection: disabled
   ✅ Member Accounts: 142 found
      ✅ All 142 member accounts are enabled
 
-🌍 Region: us-east-1
+ Region: us-east-1
   ✅ GuardDuty Detector: 0ec909d8a800bb5dff4c83ecyyyyyyyy
      ✅ Status: ENABLED
      ✅ Finding Frequency: FIFTEEN_MINUTES (optimal)
   ✅ Delegated to Security account: 222222222222
   ✅ Organization Auto-Enable: True
   ✅ Auto-Enable Org Members: ALL
-     S3 Data Events: False
-     Kubernetes Audit Logs: False
-     Malware Protection: False
+     S3 Data Events: disabled
+     Kubernetes Audit Logs: disabled
+     Malware Protection: disabled
+     RDS Protection: disabled
+     Lambda Network Activity: disabled
+     EKS Runtime Monitoring: disabled
+     EBS Malware Protection: disabled
   ✅ Member Accounts: 142 found
      ✅ All 142 member accounts are enabled
 ✅ GuardDuty completed successfully
@@ -404,28 +412,28 @@ Security account (222222222222): Should be delegated admin for organization
 Main region (eu-north-1): Should have both external and unused access analyzers
 Other regions: Should have external access analyzers only
 
-🔍 Checking Access Analyzer delegation (organization-wide)...
+ Checking Access Analyzer delegation (organization-wide)...
     ✅ Delegated to Security account: 222222222222
 ✅ Access Analyzer properly delegated to Security account
-🔍 Scanning 17 AWS regions for analyzers in unexpected regions...
+ Scanning 17 AWS regions for analyzers in unexpected regions...
   ✅ No analyzers found in unexpected regions
 
-🔍 Checking analyzers in region eu-north-1...
-    🔄 Checking from delegated admin perspective...
+ Checking analyzers in region eu-north-1...
+     Checking from delegated admin perspective...
   ⚠️  Access Analyzer needs changes in eu-north-1
 
-🔍 Checking analyzers in region us-east-1...
-    🔄 Checking from delegated admin perspective...
+ Checking analyzers in region us-east-1...
+     Checking from delegated admin perspective...
   ✅ Access Analyzer properly configured in us-east-1
 ⚠️  IAM Access Analyzer needs configuration:
 
-📋 MISSING ANALYZERS:
+ MISSING ANALYZERS:
 
-  🌍 Region: eu-north-1
+   Region: eu-north-1
     • Missing: Unused Access Analyzer (main region only)
       Recommend: Create ORGANIZATION analyzer for unused access detection
 
-🔧 Making Access Analyzer changes...
+ Making Access Analyzer changes...
   TODO: Create required analyzers in eu-north-1
 ✅ IAM Access Analyzer completed successfully
 
@@ -439,10 +447,10 @@ Security Account: 222222222222
 Organization ID: 0-xxxxxxxxxx
 Dry Run: False
 Verbose: True
-🔍 Analyzing current Security Hub configuration...
-🔍 Checking Security Hub delegation status...
-🌍 Checking Security Hub in region: eu-north-1
-    🌍 Analyzing Security Hub in region: eu-north-1
+ Analyzing current Security Hub configuration...
+ Checking Security Hub delegation status...
+ Checking Security Hub in region: eu-north-1
+     Analyzing Security Hub in region: eu-north-1
       Consolidated Controls: ✅ ENABLED
       Auto Enable Controls: ✅ DISABLED (correct)
       Standards enabled: 4
@@ -451,9 +459,9 @@ Verbose: True
         - NIST SP 800-53: READY
         - PCI DSS: READY
       Member accounts: 142
-      🔄 Finding Aggregation: Unknown (0 regions)
-🌍 Checking Security Hub in region: us-east-1
-    🌍 Analyzing Security Hub in region: us-east-1
+       Finding Aggregation: Unknown (0 regions)
+ Checking Security Hub in region: us-east-1
+     Analyzing Security Hub in region: us-east-1
       Consolidated Controls: ✅ ENABLED
       Auto Enable Controls: ✅ DISABLED (correct)
       Standards enabled: 4
@@ -462,17 +470,17 @@ Verbose: True
         - NIST SP 800-53: READY
         - PCI DSS: READY
       Member accounts: 142
-      🔄 Finding Aggregation: Unknown (0 regions)
-📋 Analyzing control policies...
-📋 Analyzing control policies and organizational assignments...
-    🔗 Policy associations found: 28
-    📋 Found policy: DEV (07922ea1-3aeb-48fa-b910-c28fxxxxxxxx)
-    📋 Found policy: PROD (c501c960-3009-4b1a-a698-db69yyyyyyyy)
-    🧪 DEV policy identified: DEV
-    🏭 PROD policy identified: PROD
-    🔗 Analyzing 28 policy associations...
+       Finding Aggregation: Unknown (0 regions)
+ Analyzing control policies...
+ Analyzing control policies and organizational assignments...
+    Policy associations found: 28
+     Found policy: DEV (07922ea1-3aeb-48fa-b910-c28fxxxxxxxx)
+     Found policy: PROD (c501c960-3009-4b1a-a698-db69yyyyyyyy)
+    DEV policy identified: DEV
+    PROD policy identified: PROD
+    Analyzing 28 policy associations...
 
-🔍 Checking for Security Hub hubs in unexpected regions...
+ Checking for Security Hub hubs in unexpected regions...
     Checking 15 regions outside configuration...
     ⚠️  Anomalous Security Hub in eu-central-1: Hub is active
        Hub ARN: arn:aws:securityhub:eu-central-1:111111111111:hub/default
@@ -503,7 +511,7 @@ Organization ID: 0-xxxxxxxxxx
 Dry Run: False
 Verbose: True
 Detective is disabled - checking for active resources to deactivate
-   🔍 Checking all AWS regions for spurious Detective activation...
+    Checking all AWS regions for spurious Detective activation...
     Checking 17 regions outside configuration...
    ✅ Detective is not delegated or active - no cleanup needed
 ✅ Detective completed successfully
@@ -519,7 +527,7 @@ Organization ID: 0-xxxxxxxxxx
 Dry Run: False
 Verbose: True
 Inspector is disabled - checking for active resources to deactivate
-   🔍 Checking all 17 AWS regions for spurious Inspector activation...
+    Checking all 17 AWS regions for spurious Inspector activation...
    ✅ Inspector is not delegated or active - no cleanup needed
 ✅ Inspector completed successfully
 

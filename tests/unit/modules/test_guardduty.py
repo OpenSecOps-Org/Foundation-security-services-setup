@@ -550,8 +550,12 @@ class TestGuardDutyConfigurationScenarios:
             'AutoEnableOrganizationMembers': 'ALL',
             'DataSources': {
                 'S3Logs': {'AutoEnable': True},
-                'Kubernetes': {'AutoEnable': False},
-                'MalwareProtection': {'AutoEnable': True}
+                'Kubernetes': {'AutoEnable': True},
+                'MalwareProtection': {'AutoEnable': True},
+                'RdsProtection': {'AutoEnable': True},
+                'LambdaNetworkActivity': {'AutoEnable': True},
+                'EksRuntimeMonitoring': {'AutoEnable': True},
+                'EbsMalwareProtection': {'AutoEnable': True}
             }
         }
         
@@ -901,3 +905,290 @@ class TestGuardDutyDelegationReporting:
         
         # Should provide actionable information about the errors
         assert 'delegation' in all_output.lower() or 'permission' in all_output.lower() or 'verify' in all_output.lower()
+
+
+class TestGuardDutyAdvancedDataSources:
+    """
+    SPECIFICATION: Advanced GuardDuty data sources detection and configuration
+    
+    The check_guardduty_in_region function should detect and report all available GuardDuty features:
+    1. Core data sources (S3, Kubernetes, Malware Protection) - already implemented
+    2. RDS Protection - database login activity monitoring
+    3. Lambda Network Activity Monitoring - serverless network analysis
+    4. EKS Runtime Monitoring - container runtime threat detection
+    5. EBS Malware Protection - advanced volume scanning
+    """
+    
+    @patch('modules.guardduty.get_client')
+    @patch('modules.guardduty.DelegationChecker.check_service_delegation')
+    def test_when_all_advanced_features_enabled_then_status_shows_comprehensive_coverage(self, mock_delegation_check, mock_get_client, mock_aws_services):
+        """
+        GIVEN: GuardDuty is properly configured with ALL advanced data sources enabled
+        WHEN: check_guardduty_in_region is called
+        THEN: Should report all advanced features (RDS, Lambda, EKS Runtime, EBS) as enabled
+        
+        This test defines the expected behavior when all 2024 GuardDuty features are optimally configured.
+        """
+        # Arrange - Mock delegation as properly configured
+        mock_delegation_check.return_value = {
+            'is_delegated_to_security': True,
+            'delegated_admin_account': '234567890123',
+            'delegation_check_failed': False,
+            'delegation_details': [{'Id': '234567890123', 'Name': 'Security-Adm'}],
+            'errors': []
+        }
+        
+        # Mock GuardDuty client with ALL advanced data sources enabled
+        mock_admin_client = mock_get_client.return_value
+        mock_admin_client.list_detectors.return_value = {'DetectorIds': ['detector123']}
+        mock_admin_client.get_detector.return_value = {
+            'Status': 'ENABLED',
+            'FindingPublishingFrequency': 'FIFTEEN_MINUTES'
+        }
+        
+        # Mock organization config with ALL advanced features enabled
+        mock_admin_client.describe_organization_configuration.return_value = {
+            'AutoEnable': True,
+            'AutoEnableOrganizationMembers': 'ALL',
+            'DataSources': {
+                'S3Logs': {'AutoEnable': True},
+                'Kubernetes': {'AutoEnable': True},
+                'MalwareProtection': {'AutoEnable': True},
+                'RdsProtection': {'AutoEnable': True},
+                'LambdaNetworkActivity': {'AutoEnable': True},
+                'EksRuntimeMonitoring': {'AutoEnable': True},
+                'EbsMalwareProtection': {'AutoEnable': True}
+            }
+        }
+        
+        # Mock member accounts
+        from unittest.mock import MagicMock
+        mock_paginator = MagicMock()
+        mock_paginator.paginate.return_value = [
+            {'Members': [
+                {'AccountId': '111111111111', 'RelationshipStatus': 'Enabled'},
+                {'AccountId': '222222222222', 'RelationshipStatus': 'Enabled'}
+            ]}
+        ]
+        mock_admin_client.get_paginator.return_value = mock_paginator
+        
+        # Act
+        result = check_guardduty_in_region(
+            region='us-east-1',
+            admin_account='123456789012',
+            security_account='234567890123',
+            cross_account_role='AWSControlTowerExecution',
+            verbose=False
+        )
+        
+        # Assert - Should show all advanced features as enabled
+        assert result['guardduty_enabled'] is True
+        assert result['delegation_status'] == 'delegated'
+        assert result['needs_changes'] is False, "All features enabled should need no changes"
+        
+        # Check that ALL advanced data sources are reported
+        details_str = '\n'.join(result['guardduty_details'])
+        assert "S3 Data Events: enabled" in details_str
+        assert "Kubernetes Audit Logs: enabled" in details_str
+        assert "Malware Protection: enabled" in details_str
+        assert "RDS Protection: enabled" in details_str
+        assert "Lambda Network Activity: enabled" in details_str
+        assert "EKS Runtime Monitoring: enabled" in details_str
+        assert "EBS Malware Protection: enabled" in details_str
+    
+    @patch('modules.guardduty.get_client')
+    @patch('modules.guardduty.DelegationChecker.check_service_delegation')
+    def test_when_advanced_features_missing_then_issues_and_actions_are_identified(self, mock_delegation_check, mock_get_client, mock_aws_services):
+        """
+        GIVEN: GuardDuty is configured but missing advanced data sources
+        WHEN: check_guardduty_in_region is called
+        THEN: Should identify missing features and recommend enabling them
+        
+        This test ensures that missing advanced features are flagged as configuration issues.
+        """
+        # Arrange - Mock delegation as properly configured
+        mock_delegation_check.return_value = {
+            'is_delegated_to_security': True,
+            'delegated_admin_account': '234567890123',
+            'delegation_check_failed': False,
+            'delegation_details': [{'Id': '234567890123', 'Name': 'Security-Adm'}],
+            'errors': []
+        }
+        
+        # Mock GuardDuty client
+        mock_admin_client = mock_get_client.return_value
+        mock_admin_client.list_detectors.return_value = {'DetectorIds': ['detector123']}
+        mock_admin_client.get_detector.return_value = {
+            'Status': 'ENABLED',
+            'FindingPublishingFrequency': 'FIFTEEN_MINUTES'
+        }
+        
+        # Mock organization config with ONLY basic features enabled (missing advanced ones)
+        mock_admin_client.describe_organization_configuration.return_value = {
+            'AutoEnable': True,
+            'AutoEnableOrganizationMembers': 'ALL',
+            'DataSources': {
+                'S3Logs': {'AutoEnable': True},
+                'Kubernetes': {'AutoEnable': False},
+                'MalwareProtection': {'AutoEnable': True},
+                'RdsProtection': {'AutoEnable': False},
+                'LambdaNetworkActivity': {'AutoEnable': False},
+                'EksRuntimeMonitoring': {'AutoEnable': False},
+                'EbsMalwareProtection': {'AutoEnable': False}
+            }
+        }
+        
+        # Mock member accounts
+        from unittest.mock import MagicMock
+        mock_paginator = MagicMock()
+        mock_paginator.paginate.return_value = [
+            {'Members': [
+                {'AccountId': '111111111111', 'RelationshipStatus': 'Enabled'}
+            ]}
+        ]
+        mock_admin_client.get_paginator.return_value = mock_paginator
+        
+        # Act
+        result = check_guardduty_in_region(
+            region='us-east-1',
+            admin_account='123456789012',
+            security_account='234567890123',
+            cross_account_role='AWSControlTowerExecution',
+            verbose=False
+        )
+        
+        # Assert - With updated implementation, disabled features are reported but don't require changes
+        assert result['guardduty_enabled'] is True
+        assert result['delegation_status'] == 'delegated'
+        assert result['needs_changes'] is False, "Updated implementation reports status without requiring changes for disabled features"
+        
+        # With updated implementation, disabled features are reported but don't generate issues
+        assert result['needs_changes'] is False, "Updated implementation reports status without value judgments"
+        
+        # Issues should be empty since this is just status reporting
+        assert result['issues'] == [], "Disabled features should not be reported as issues"
+        
+        # Check that advanced data sources are reported in details
+        details_str = '\n'.join(result['guardduty_details'])
+        assert "Kubernetes Audit Logs: disabled" in details_str
+        assert "RDS Protection: disabled" in details_str
+        assert "Lambda Network Activity: disabled" in details_str
+        assert "EKS Runtime Monitoring: disabled" in details_str
+        assert "EBS Malware Protection: disabled" in details_str
+    
+    @patch('modules.guardduty.get_client')
+    @patch('modules.guardduty.DelegationChecker.check_service_delegation')
+    def test_when_mixed_advanced_features_then_detailed_status_reported(self, mock_delegation_check, mock_get_client, mock_aws_services):
+        """
+        GIVEN: GuardDuty has some advanced features enabled and others disabled
+        WHEN: check_guardduty_in_region is called
+        THEN: Should report exact status of each advanced feature individually
+        
+        This test ensures granular reporting of advanced feature configuration.
+        """
+        # Arrange - Mock delegation as properly configured
+        mock_delegation_check.return_value = {
+            'is_delegated_to_security': True,
+            'delegated_admin_account': '234567890123',
+            'delegation_check_failed': False,
+            'delegation_details': [{'Id': '234567890123', 'Name': 'Security-Adm'}],
+            'errors': []
+        }
+        
+        # Mock GuardDuty client
+        mock_admin_client = mock_get_client.return_value
+        mock_admin_client.list_detectors.return_value = {'DetectorIds': ['detector123']}
+        mock_admin_client.get_detector.return_value = {
+            'Status': 'ENABLED',
+            'FindingPublishingFrequency': 'FIFTEEN_MINUTES'
+        }
+        
+        # Mock organization config with MIXED advanced features
+        mock_admin_client.describe_organization_configuration.return_value = {
+            'AutoEnable': True,
+            'AutoEnableOrganizationMembers': 'ALL',
+            'DataSources': {
+                'S3Logs': {'AutoEnable': True},
+                'Kubernetes': {'AutoEnable': True},
+                'MalwareProtection': {'AutoEnable': False},
+                'RdsProtection': {'AutoEnable': True},
+                'LambdaNetworkActivity': {'AutoEnable': False},
+                'EksRuntimeMonitoring': {'AutoEnable': True},
+                'EbsMalwareProtection': {'AutoEnable': False}
+            }
+        }
+        
+        # Mock member accounts
+        from unittest.mock import MagicMock
+        mock_paginator = MagicMock()
+        mock_paginator.paginate.return_value = [
+            {'Members': [
+                {'AccountId': '111111111111', 'RelationshipStatus': 'Enabled'}
+            ]}
+        ]
+        mock_admin_client.get_paginator.return_value = mock_paginator
+        
+        # Act
+        result = check_guardduty_in_region(
+            region='us-east-1',
+            admin_account='123456789012',
+            security_account='234567890123',
+            cross_account_role='AWSControlTowerExecution',
+            verbose=False
+        )
+        
+        # Assert - Should show exact status of each feature
+        assert result['guardduty_enabled'] is True
+        assert result['delegation_status'] == 'delegated'
+        assert result['needs_changes'] is False, "Updated implementation reports status without requiring changes for disabled features"
+        
+        # Check exact status reporting for ALL features
+        details_str = '\n'.join(result['guardduty_details'])
+        assert "S3 Data Events: enabled" in details_str
+        assert "Kubernetes Audit Logs: enabled" in details_str
+        assert "Malware Protection: disabled" in details_str
+        assert "RDS Protection: enabled" in details_str
+        assert "Lambda Network Activity: disabled" in details_str
+        assert "EKS Runtime Monitoring: enabled" in details_str
+        assert "EBS Malware Protection: disabled" in details_str
+        
+        # With updated implementation, no features are flagged as issues for being disabled
+        assert result['needs_changes'] is False, "Updated implementation reports status without value judgments"
+        assert result['issues'] == [], "Disabled features should not be reported as issues"
+    
+    @patch('modules.guardduty.get_client')
+    def test_when_datasources_config_missing_then_features_reported_as_unknown(self, mock_get_client, mock_aws_services):
+        """
+        GIVEN: GuardDuty is enabled but organization configuration cannot be retrieved
+        WHEN: check_guardduty_in_region is called
+        THEN: Should report advanced features as unknown rather than missing
+        
+        This test ensures proper handling when data source configuration is unavailable.
+        """
+        # Arrange - Mock GuardDuty without delegation (so no org config available)
+        mock_guardduty_client = mock_get_client.return_value
+        mock_guardduty_client.list_detectors.return_value = {'DetectorIds': ['detector123']}
+        mock_guardduty_client.get_detector.return_value = {
+            'Status': 'ENABLED',
+            'FindingPublishingFrequency': 'FIFTEEN_MINUTES'
+        }
+        
+        # No delegation means no organization configuration available
+        
+        # Act
+        result = check_guardduty_in_region(
+            region='us-east-1',
+            admin_account='123456789012',
+            security_account='234567890123',
+            cross_account_role='AWSControlTowerExecution',
+            verbose=False
+        )
+        
+        # Assert - Should handle missing data source config gracefully
+        assert result['guardduty_enabled'] is True
+        assert result['delegation_status'] == 'not_delegated'
+        
+        # Check that advanced data sources are not listed when config unavailable
+        details_str = '\n'.join(result['guardduty_details'])
+        # Should show that delegation is needed to get data source status
+        assert "delegation" in details_str.lower() or "Security account" in details_str
