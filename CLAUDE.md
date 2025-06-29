@@ -147,7 +147,7 @@ Foundation-security-services-setup/
 1. Can be implemented as **zsh scripts** (using AWS CLI commands) or **Python scripts** (using boto3)
 2. Assumes authenticated session via `aws sso login` to admin account with SystemAdministrator access
 3. Uses account names/IDs from `Installer/apps/accounts.toml` for cross-account operations
-4. Handles cross-account role assumptions (typically to `AWSControlTowerExecution` role)
+4. Handles cross-account role assumptions (`AWSControlTowerExecution` for Control Tower, `OrganizationAccountAccessRole` for Organizations-only)
 5. Implements the specific manual steps for that service
 6. **Provides idempotent operation** - can be run multiple times safely without side effects
 7. **Supports --dry-run mode** - shows what would be done without making changes
@@ -262,7 +262,7 @@ See the README.md for detailed standalone usage instructions and parameter examp
 - `--admin-account` - Organization management account ID (where delegations are performed)
 - `--security-account` - Security administration account ID (where services are configured)
 - `--regions` - Comma-separated list of regions (main region first, e.g., "us-east-1,us-west-2,eu-west-1")
-- `--cross-account-role` - Cross-account role name (typically "AWSControlTowerExecution")
+- `--cross-account-role` - Cross-account role name (default: "AWSControlTowerExecution", choices: "AWSControlTowerExecution" or "OrganizationAccountAccessRole")
 - `--org-id` - AWS Organization ID (e.g., "o-example12345")
 - `--root-ou` - Root organizational unit ID (e.g., "r-example12345")
 

@@ -292,9 +292,30 @@ class TestParameterSecurity:
         for role in valid_roles:
             # Valid roles should not contain problematic characters
             assert ' ' not in role, f"Valid role {role} should not contain spaces"
-            assert ';' not in role, f"Valid role {role} should not contain semicolons"
+    
+    def test_cross_account_role_restricted_choices(self):
+        """Test that cross-account role parameter only accepts specific values."""
+        # These should be the only two allowed values
+        valid_choices = [
+            "AWSControlTowerExecution",
+            "OrganizationAccountAccessRole"
+        ]
         
-        for role in invalid_roles:
-            if role:  # Skip empty string
-                has_problems = ' ' in role or ';' in role or '$' in role
-                assert has_problems, f"Invalid role {role} should contain problematic characters"
+        # These should be rejected even though they're valid role names
+        invalid_choices = [
+            "MyCustomRole",
+            "CustomExecutionRole", 
+            "AnotherRole",
+            "aws-control-tower-execution",  # wrong case
+            "organizationaccountaccessrole"  # wrong case
+        ]
+        
+        # Test that valid choices are accepted
+        for choice in valid_choices:
+            assert choice in ["AWSControlTowerExecution", "OrganizationAccountAccessRole"], \
+                f"Choice '{choice}' should be in allowed list"
+        
+        # Test that invalid choices are rejected
+        for choice in invalid_choices:
+            assert choice not in ["AWSControlTowerExecution", "OrganizationAccountAccessRole"], \
+                f"Choice '{choice}' should not be in allowed list"

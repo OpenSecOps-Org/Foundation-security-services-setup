@@ -21,18 +21,7 @@ Automates the manual steps:
    idea to wait 24 hours to verify your control setup.
 """
 
-# ANSI Color codes (matching Foundation-AWS-Core-SSO-Configuration)
-YELLOW = "\033[93m"
-LIGHT_BLUE = "\033[94m" 
-GREEN = "\033[92m"
-RED = "\033[91m"
-GRAY = "\033[90m"
-END = "\033[0m"
-BOLD = "\033[1m"
-
-def printc(color, string, **kwargs):
-    """Print colored output with proper line clearing"""
-    print(f"{color}{string}\033[K{END}", **kwargs)
+from .utils import printc, get_client, YELLOW, LIGHT_BLUE, GREEN, RED, GRAY, END, BOLD
 
 def setup_security_hub(enabled, params, dry_run, verbose):
     """
@@ -107,36 +96,6 @@ def setup_security_hub(enabled, params, dry_run, verbose):
 # Import required modules
 import boto3
 from botocore.exceptions import ClientError
-
-
-def get_client(service: str, account_id: str, region: str, role_name: str):
-    """
-    Create a cross-account AWS client using role assumption.
-    This matches the pattern used in other Foundation components.
-    """
-    try:
-        sts_client = boto3.client('sts')
-        
-        # Assume role in the target account
-        response = sts_client.assume_role(
-            RoleArn=f"arn:aws:iam::{account_id}:role/{role_name}",
-            RoleSessionName=f"security_hub_setup_{account_id}"
-        )
-        
-        credentials = response['Credentials']
-        
-        # Return configured client
-        return boto3.client(
-            service,
-            aws_access_key_id=credentials['AccessKeyId'],
-            aws_secret_access_key=credentials['SecretAccessKey'],
-            aws_session_token=credentials['SessionToken'],
-            region_name=region
-        )
-    except Exception as e:
-        if verbose:
-            printc(RED, f"    ❌ Failed to assume role in account {account_id}: {str(e)}")
-        return None
 
 
 def check_security_hub_delegation(admin_account: str, security_account: str, regions: list, verbose=False) -> dict:

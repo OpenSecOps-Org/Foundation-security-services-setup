@@ -8,18 +8,7 @@ Automates the manual steps:
    global filter in these regions.
 """
 
-# ANSI Color codes (matching Foundation-AWS-Core-SSO-Configuration)
-YELLOW = "\033[93m"
-LIGHT_BLUE = "\033[94m" 
-GREEN = "\033[92m"
-RED = "\033[91m"
-GRAY = "\033[90m"
-END = "\033[0m"
-BOLD = "\033[1m"
-
-def printc(color, string, **kwargs):
-    """Print colored output with proper line clearing"""
-    print(f"{color}{string}\033[K{END}", **kwargs)
+from .utils import printc, YELLOW, LIGHT_BLUE, GREEN, RED, GRAY, END, BOLD
 
 def setup_aws_config(enabled, params, dry_run, verbose):
     """Setup AWS Config in org account with proper IAM global event recording."""

@@ -1,5 +1,10 @@
 # Change Log
 
+## v0.1.11
+    * --cross-account-role parameter now defaults to AWSControlTowerExecution and can be omitted for standalone usage convenience
+    * Cross-account role restricted to two valid choices: AWSControlTowerExecution (default) and OrganizationAccountAccessRole
+    * Common utilities (colors, printc, get_client) centralized in shared modules/utils.py for improved maintainability
+
 ## v0.1.10
     * Added missing .python-version file.
 

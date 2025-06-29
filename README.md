@@ -112,8 +112,7 @@ You can run the setup script directly without the OpenSecOps Installer:
 ./setup-security-services \
   --admin-account 111111111111 \
   --security-account 222222222222 \
-  --regions us-east-1,us-west-2,eu-west-1 \        # Main region first
-  --cross-account-role AWSControlTowerExecution \  # `OrganizationAccountAccessRole` without Control Tower
+  --regions us-east-1,us-west-2,eu-west-1 \
   --org-id o-example12345 \
   --root-ou r-example12345
 ```
@@ -123,8 +122,8 @@ You can run the setup script directly without the OpenSecOps Installer:
 ./setup-security-services \
   --admin-account 111111111111 \
   --security-account 222222222222 \
-  --regions us-east-1,us-west-2,eu-west-1 \        # Main region first
-  --cross-account-role AWSControlTowerExecution \  # `OrganizationAccountAccessRole` without Control Tower
+  --regions us-east-1,us-west-2,eu-west-1 \
+  --cross-account-role OrganizationAccountAccessRole \  # For Organizations without Control Tower
   --org-id o-example12345 \
   --root-ou r-example12345 \
   --security-hub No \
@@ -133,7 +132,10 @@ You can run the setup script directly without the OpenSecOps Installer:
 ```
 
 **Parameters:**
-- **Required**: `--admin-account`, `--security-account`, `--regions`, `--cross-account-role`, `--org-id`, `--root-ou`
+- **Required**: `--admin-account`, `--security-account`, `--regions`, `--org-id`, `--root-ou`
+- **Cross-Account Access**: `--cross-account-role` (default: `AWSControlTowerExecution`)
+  - `AWSControlTowerExecution` - For environments with AWS Control Tower (default)
+  - `OrganizationAccountAccessRole` - For AWS Organizations without Control Tower
 - **Core Services** (default: Yes): `--aws-config`, `--guardduty`, `--security-hub`, `--access-analyzer`
 - **Optional Services** (default: No): `--detective`, `--inspector`
 - **Flags**: `--dry-run` (preview changes), `--verbose` (detailed output)
