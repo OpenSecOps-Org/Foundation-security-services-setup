@@ -153,7 +153,7 @@ def setup_access_analyzer(enabled, params, dry_run, verbose):
                 printc(LIGHT_BLUE, "\n Current IAM Access Analyzer Configuration:")
                 for region, status in analyzer_status.items():
                     printc(LIGHT_BLUE, f"\n Region: {region}")
-                    if status['analyzer_enabled']:
+                    if status['has_analyzers']:
                         for detail in status['analyzer_details']:
                             printc(GRAY, f"  {detail}")
                     else:

@@ -1,5 +1,10 @@
 # Change Log
 
+## v0.1.16
+    * Fixed IAM Access Analyzer KeyError crash in eu-west-1 and other regions during verbose configuration display
+    * Corrected 'analyzer_enabled' key mismatch - now properly uses 'has_analyzers' key returned by check function
+    * Maintains 100% test success rate (189 tests passing) and resolves regional processing failures
+
 ## v0.1.15
     * Completed emoji cleanup across all Python modules and documentation examples, maintaining only essential status indicators (✅, ❌, ⚠️)
     * Enhanced GuardDuty monitoring with comprehensive data sources status reporting (S3 Data Events, Kubernetes Audit Logs, Malware Protection, RDS Protection, Lambda Network Activity, EKS Runtime Monitoring, EBS Malware Protection)
