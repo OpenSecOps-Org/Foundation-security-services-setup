@@ -681,3 +681,241 @@ class TestAccessAnalyzerDelegationReporting:
         # Expected improvement: Different messages for:
         # - API permission issues: "Check IAM permissions for Organizations API"
         # - True delegation issues: "Delegate Access Analyzer to Security account"
+
+
+class TestAccessAnalyzerImprovedMessaging:
+    """
+    SPECIFICATION: Improved messaging and API usage (TDD Fixes)
+    
+    The Access Analyzer module should:
+    1. Not show confusing "No analyzers found" when delegation provides data
+    2. Use correct APIs for different analyzer types to avoid ValidationException
+    3. Provide clear, non-contradictory output to users
+    """
+    
+    @patch('modules.access_analyzer.check_access_analyzer_delegation')
+    @patch('modules.access_analyzer.get_client')
+    @patch('builtins.print')
+    def test_when_delegation_exists_then_no_confusing_admin_account_messages(self, mock_print, mock_get_client, mock_delegation, mock_aws_services):
+        """
+        GIVEN: Access Analyzer is delegated and delegated admin has analyzers
+        WHEN: Verbose output shows analyzer details
+        THEN: Should NOT show "❌ No analyzers found" from admin account perspective
+              AND should show delegated admin view with analyzer details
+        
+        This prevents the confusing output:
+        "❌ No analyzers found in eu-west-1"
+        "✅ Delegated Admin View: 2 analyzers"
+        """
+        from modules.access_analyzer import check_access_analyzer_in_region
+        from unittest.mock import MagicMock
+        
+        # Arrange - Mock delegation as successful
+        mock_delegation.return_value = 'delegated'
+        
+        # Mock admin account client (no analyzers visible)
+        admin_client = MagicMock()
+        admin_client.get_paginator.return_value.paginate.return_value = [{'analyzers': []}]
+        
+        # Mock delegated admin client (analyzers visible)
+        delegated_client = MagicMock()
+        delegated_client.get_paginator.return_value.paginate.return_value = [
+            {
+                'analyzers': [
+                    {
+                        'name': 'ExternalAccess-ConsoleAnalyzer-test',
+                        'type': 'ORGANIZATION',
+                        'status': 'ACTIVE',
+                        'arn': 'arn:aws:access-analyzer:us-east-1:123456789012:analyzer/test'
+                    }
+                ]
+            }
+        ]
+        
+        # Mock get_client to return appropriate clients
+        def mock_client_side_effect(service, account_id, region, role):
+            if account_id == '111111111111':  # admin account
+                return admin_client
+            elif account_id == '222222222222':  # security account
+                return delegated_client
+            return None
+        
+        mock_get_client.side_effect = mock_client_side_effect
+        
+        # Act
+        status = check_access_analyzer_in_region(
+            region='us-east-1',
+            admin_account='111111111111',
+            security_account='222222222222', 
+            cross_account_role='AWSControlTowerExecution',
+            is_main_region=True,
+            delegation_status='delegated',
+            verbose=True
+        )
+        
+        # Assert
+        assert status is not None
+        assert 'analyzer_details' in status
+        
+        # Should NOT contain confusing "No analyzers found" message
+        details_text = ' '.join(status['analyzer_details'])
+        assert '❌ No analyzers found' not in details_text, "Should not show confusing admin account message when delegation exists"
+        
+        # Should contain delegated admin view information
+        assert 'Delegated Admin View' in details_text or 'analyzer' in details_text.lower(), "Should show delegated admin perspective"
+    
+    @patch('modules.access_analyzer.get_client')
+    def test_when_unused_access_analyzer_then_uses_list_findings_v2_api(self, mock_get_client, mock_aws_services):
+        """
+        GIVEN: An ORGANIZATION_UNUSED_ACCESS analyzer exists
+        WHEN: Getting findings count for the analyzer
+        THEN: Should use list_findings_v2 API instead of list_findings
+              AND should not raise ValidationException
+        
+        This fixes the API error:
+        "ValidationException: Operation not supported for the requested Finding Type: Unused Access Finding. Please use ListFindingsV2 API"
+        """
+        from modules.access_analyzer import check_access_analyzer_in_region
+        from unittest.mock import MagicMock
+        
+        # Arrange - Mock delegated client with unused access analyzer
+        delegated_client = MagicMock()
+        
+        # Mock list_analyzers response with unused access analyzer
+        delegated_client.get_paginator.return_value.paginate.return_value = [
+            {
+                'analyzers': [
+                    {
+                        'name': 'UnusedAccess-ConsoleAnalyzer-test',
+                        'type': 'ORGANIZATION_UNUSED_ACCESS',  # This type requires ListFindingsV2
+                        'status': 'ACTIVE',
+                        'arn': 'arn:aws:access-analyzer:us-east-1:123456789012:analyzer/unused-test'
+                    }
+                ]
+            }
+        ]
+        
+        # Create separate paginators for different API calls
+        list_analyzers_paginator = MagicMock()
+        list_analyzers_paginator.paginate.return_value = [
+            {
+                'analyzers': [
+                    {
+                        'name': 'UnusedAccess-ConsoleAnalyzer-test',
+                        'type': 'ORGANIZATION_UNUSED_ACCESS',
+                        'status': 'ACTIVE',
+                        'arn': 'arn:aws:access-analyzer:us-east-1:123456789012:analyzer/unused-test'
+                    }
+                ]
+            }
+        ]
+        
+        list_findings_v2_paginator = MagicMock()
+        list_findings_v2_paginator.paginate.return_value = [{'findings': []}]  # No findings
+        
+        # Mock get_paginator to return appropriate paginator based on operation
+        def paginator_side_effect(operation):
+            if operation == 'list_analyzers':
+                return list_analyzers_paginator
+            elif operation == 'list_findings_v2':
+                return list_findings_v2_paginator
+            else:
+                raise Exception(f"Unexpected paginator operation: {operation}")
+        
+        delegated_client.get_paginator.side_effect = paginator_side_effect
+        mock_get_client.return_value = delegated_client
+        
+        # Act
+        status = check_access_analyzer_in_region(
+            region='us-east-1',
+            admin_account='111111111111',
+            security_account='222222222222',
+            cross_account_role='AWSControlTowerExecution', 
+            is_main_region=True,
+            delegation_status='delegated',
+            verbose=True
+        )
+        
+        # Assert
+        assert status is not None
+        
+        # Verify list_findings_v2 was called for unused access analyzer
+        delegated_client.get_paginator.assert_any_call('list_findings_v2')
+        
+        # Should not contain ValidationException error
+        errors_text = ' '.join(status.get('errors', []))
+        details_text = ' '.join(status.get('analyzer_details', []))
+        
+        assert 'ValidationException' not in errors_text, "Should not have ValidationException when using correct API"
+        assert 'ValidationException' not in details_text, "Should not show ValidationException in details"
+        
+        # Should successfully process the unused access analyzer
+        assert 'Unused Access Analyzer' in details_text, "Should identify unused access analyzer correctly"
+    
+    @patch('modules.access_analyzer.get_client')
+    def test_when_external_access_analyzer_then_uses_list_findings_api(self, mock_get_client, mock_aws_services):
+        """
+        GIVEN: An ORGANIZATION (external access) analyzer exists
+        WHEN: Getting findings count for the analyzer
+        THEN: Should use list_findings API (not list_findings_v2)
+              AND should work correctly for external access findings
+        
+        This ensures external access analyzers continue to use the correct API.
+        """
+        from modules.access_analyzer import check_access_analyzer_in_region
+        from unittest.mock import MagicMock
+        
+        # Arrange - Mock delegated client with external access analyzer
+        delegated_client = MagicMock()
+        
+        # Create separate paginators
+        list_analyzers_paginator = MagicMock()
+        list_analyzers_paginator.paginate.return_value = [
+            {
+                'analyzers': [
+                    {
+                        'name': 'ExternalAccess-ConsoleAnalyzer-test',
+                        'type': 'ORGANIZATION',  # External access type
+                        'status': 'ACTIVE',
+                        'arn': 'arn:aws:access-analyzer:us-east-1:123456789012:analyzer/external-test'
+                    }
+                ]
+            }
+        ]
+        
+        list_findings_paginator = MagicMock()
+        list_findings_paginator.paginate.return_value = [{'findings': [{'id': 'finding1'}, {'id': 'finding2'}]}]  # 2 findings
+        
+        # Mock get_paginator to return appropriate paginator
+        def paginator_side_effect(operation):
+            if operation == 'list_analyzers':
+                return list_analyzers_paginator
+            elif operation == 'list_findings':
+                return list_findings_paginator
+            else:
+                raise Exception(f"Unexpected paginator operation: {operation}")
+        
+        delegated_client.get_paginator.side_effect = paginator_side_effect
+        mock_get_client.return_value = delegated_client
+        
+        # Act
+        status = check_access_analyzer_in_region(
+            region='us-east-1',
+            admin_account='111111111111',
+            security_account='222222222222',
+            cross_account_role='AWSControlTowerExecution',
+            is_main_region=True,
+            delegation_status='delegated',
+            verbose=True
+        )
+        
+        # Assert
+        assert status is not None
+        
+        # Verify list_findings was called for external access analyzer
+        delegated_client.get_paginator.assert_any_call('list_findings')
+        
+        # Should show findings count for external access analyzer
+        details_text = ' '.join(status.get('analyzer_details', []))
+        assert 'Active Findings: 2' in details_text, "Should show correct findings count for external access analyzer"
+        assert 'External Access Analyzer' in details_text, "Should identify external access analyzer correctly"

@@ -347,7 +347,9 @@ def check_access_analyzer_in_region(region, admin_account, security_account, cro
                         status['external_analyzer_count'] += 1
                         status['analyzer_details'].append(f"       General Analyzer (assuming external access)")
             else:
-                status['analyzer_details'].append(f"❌ No analyzers found in {region}")
+                # Only show this if delegation isn't going to provide better data
+                if delegation_status != 'delegated':
+                    status['analyzer_details'].append(f"❌ No analyzers found in {region}")
                     
         except ClientError as e:
             error_msg = f"List analyzers failed: {str(e)}"
@@ -404,9 +406,24 @@ def check_access_analyzer_in_region(region, admin_account, security_account, cro
                             # Get findings count for this analyzer
                             try:
                                 findings_count = 0
-                                findings_paginator = delegated_client.get_paginator('list_findings')
-                                for page in findings_paginator.paginate(analyzerArn=analyzer.get('arn')):
-                                    findings_count += len(page.get('findings', []))
+                                analyzer_type = analyzer.get('type')
+                                
+                                # Use appropriate API based on analyzer type
+                                if analyzer_type == 'ORGANIZATION_UNUSED_ACCESS':
+                                    # Use ListFindingsV2 for Unused Access analyzers
+                                    try:
+                                        findings_paginator = delegated_client.get_paginator('list_findings_v2')
+                                        for page in findings_paginator.paginate(analyzerArn=analyzer.get('arn')):
+                                            findings_count += len(page.get('findings', []))
+                                    except Exception:
+                                        # Fallback: Skip findings count for unused access analyzers
+                                        status['analyzer_details'].append(f"       Findings: (Unused Access - count not available)")
+                                        continue
+                                else:
+                                    # Use ListFindings for External Access analyzers
+                                    findings_paginator = delegated_client.get_paginator('list_findings')
+                                    for page in findings_paginator.paginate(analyzerArn=analyzer.get('arn')):
+                                        findings_count += len(page.get('findings', []))
                                 
                                 if findings_count > 0:
                                     status['analyzer_details'].append(f"       Active Findings: {findings_count}")

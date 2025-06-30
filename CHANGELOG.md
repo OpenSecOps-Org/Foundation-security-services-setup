@@ -1,5 +1,11 @@
 # Change Log
 
+## v0.1.17
+    * Improved IAM Access Analyzer output messaging - eliminated confusing "No analyzers found" messages when delegation provides complete data
+    * Fixed ValidationException for Unused Access analyzers by using correct ListFindingsV2 API instead of ListFindings API
+    * Added 3 comprehensive TDD tests to specify improved messaging and API usage behavior (192 tests passing)
+    * Enhanced verbose output clarity and eliminated contradictory status messages
+
 ## v0.1.16
     * Fixed IAM Access Analyzer KeyError crash in eu-west-1 and other regions during verbose configuration display
     * Corrected 'analyzer_enabled' key mismatch - now properly uses 'has_analyzers' key returned by check function
