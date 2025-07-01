@@ -755,10 +755,10 @@ class TestAccessAnalyzerImprovedMessaging:
         
         # Assert
         assert status is not None
-        assert 'analyzer_details' in status
+        assert 'service_details' in status
         
         # Should NOT contain confusing "No analyzers found" message
-        details_text = ' '.join(status['analyzer_details'])
+        details_text = ' '.join(status['service_details'])
         assert '❌ No analyzers found' not in details_text, "Should not show confusing admin account message when delegation exists"
         
         # Should contain delegated admin view information
@@ -844,7 +844,7 @@ class TestAccessAnalyzerImprovedMessaging:
         
         # Should not contain ValidationException error
         errors_text = ' '.join(status.get('errors', []))
-        details_text = ' '.join(status.get('analyzer_details', []))
+        details_text = ' '.join(status.get('service_details', []))
         
         assert 'ValidationException' not in errors_text, "Should not have ValidationException when using correct API"
         assert 'ValidationException' not in details_text, "Should not show ValidationException in details"
@@ -916,6 +916,6 @@ class TestAccessAnalyzerImprovedMessaging:
         delegated_client.get_paginator.assert_any_call('list_findings')
         
         # Should show findings count for external access analyzer
-        details_text = ' '.join(status.get('analyzer_details', []))
+        details_text = ' '.join(status.get('service_details', []))
         assert 'Active Findings: 2' in details_text, "Should show correct findings count for external access analyzer"
         assert 'External Access Analyzer' in details_text, "Should identify external access analyzer correctly"

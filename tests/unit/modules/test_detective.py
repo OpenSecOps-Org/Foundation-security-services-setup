@@ -532,13 +532,13 @@ class TestDetectiveRealImplementationRequirements:
         mock_guardduty_check.return_value = 'ready'
         mock_detective_check.return_value = {
             'region': 'us-east-1',
-            'detective_enabled': False,  # No graphs exist
+            'service_enabled': False,  # No graphs exist
             'delegation_status': 'delegated',  # But delegation exists
             'member_count': 0,  # No members
             'needs_changes': True,  # This should trigger recommendations
             'issues': ['Detective delegated but no investigation graph found'],
             'actions': ['Enable Detective investigation graph'],
-            'detective_details': ['❌ No investigation graph found despite delegation']
+            'service_details': ['❌ No investigation graph found despite delegation']
         }
         params = create_test_params(regions=['us-east-1'])
         
@@ -682,7 +682,7 @@ class TestDetectiveAnomalousRegionDetection:
     """
     SPECIFICATION: Detective anomalous region detection
     
-    The check_anomalous_detective_regions function should:
+    The AnomalousRegionChecker should:
     1. Detect Detective investigation graphs in regions outside the expected list
     2. Return list of anomalous regions with graph details
     3. Handle API errors gracefully
@@ -690,38 +690,35 @@ class TestDetectiveAnomalousRegionDetection:
     """
     
     @patch('modules.detective.printc')
-    @patch('modules.detective.check_anomalous_detective_regions')
+    @patch('modules.detective.AnomalousRegionChecker.check_service_anomalous_regions')
     def test_when_anomalous_graphs_found_then_show_cost_warnings(self, mock_anomaly_check, mock_print, mock_aws_services):
         """
         GIVEN: Detective investigation graphs exist in regions outside expected configuration
         WHEN: setup_detective detects anomalous regions
         THEN: Should warn about unexpected costs and configuration drift
         """
-        # Arrange - Mock anomalous regions found
-        mock_anomaly_check.return_value = [
+        # Arrange - Mock anomalous regions found using dataclass objects
+        from modules.utils import create_anomalous_status
+        
+        anomaly1 = create_anomalous_status('eu-west-2', 1)
+        anomaly1.resource_details = [
             {
-                'region': 'eu-west-2',
-                'graph_count': 1,
-                'graph_details': [
-                    {
-                        'graph_arn': 'arn:aws:detective:eu-west-2:123456789012:graph:example123',
-                        'created_time': '2024-01-15T10:30:00.000Z',
-                        'member_count': 5
-                    }
-                ]
-            },
-            {
-                'region': 'ap-northeast-1',
-                'graph_count': 1,
-                'graph_details': [
-                    {
-                        'graph_arn': 'arn:aws:detective:ap-northeast-1:123456789012:graph:example456',
-                        'created_time': '2024-02-01T08:15:00.000Z',
-                        'member_count': 0
-                    }
-                ]
+                'graph_arn': 'arn:aws:detective:eu-west-2:123456789012:graph:example123',
+                'created_time': '2024-01-15T10:30:00.000Z',
+                'member_count': 5
             }
         ]
+        
+        anomaly2 = create_anomalous_status('ap-northeast-1', 1)
+        anomaly2.resource_details = [
+            {
+                'graph_arn': 'arn:aws:detective:ap-northeast-1:123456789012:graph:example456',
+                'created_time': '2024-02-01T08:15:00.000Z',
+                'member_count': 0
+            }
+        ]
+        
+        mock_anomaly_check.return_value = [anomaly1, anomaly2]
         
         params = create_test_params()
         
@@ -739,27 +736,26 @@ class TestDetectiveAnomalousRegionDetection:
         assert anomaly_mentioned, f"Should show anomalous graph warnings. Got: {all_output}"
     
     @patch('modules.detective.printc')
-    @patch('modules.detective.check_anomalous_detective_regions')
+    @patch('modules.detective.AnomalousRegionChecker.check_service_anomalous_regions')
     def test_when_detective_disabled_but_spurious_activations_found_then_warn(self, mock_anomaly_check, mock_print, mock_aws_services):
         """
         GIVEN: Detective is disabled but spurious graphs exist in unexpected regions
         WHEN: setup_detective is called with enabled='No'
         THEN: Should check all regions and warn about spurious activations
         """
-        # Arrange - Mock spurious activations found
-        mock_anomaly_check.return_value = [
+        # Arrange - Mock spurious activations found using dataclass objects
+        from modules.utils import create_anomalous_status
+        
+        anomaly = create_anomalous_status('ap-southeast-1', 1)
+        anomaly.resource_details = [
             {
-                'region': 'ap-southeast-1',
-                'graph_count': 1,
-                'graph_details': [
-                    {
-                        'graph_arn': 'arn:aws:detective:ap-southeast-1:123456789012:graph:spurious123',
-                        'created_time': '2024-01-15T10:30:00.000Z',
-                        'member_count': 3
-                    }
-                ]
+                'graph_arn': 'arn:aws:detective:ap-southeast-1:123456789012:graph:spurious123',
+                'created_time': '2024-01-15T10:30:00.000Z',
+                'member_count': 3
             }
         ]
+        
+        mock_anomaly_check.return_value = [anomaly]
         
         params = create_test_params()
         
@@ -771,8 +767,8 @@ class TestDetectiveAnomalousRegionDetection:
         
         # Verify anomaly check was called with empty list (all regions)
         mock_anomaly_check.assert_called_once()
-        call_args = mock_anomaly_check.call_args[0]
-        expected_regions = call_args[0]
+        call_kwargs = mock_anomaly_check.call_args[1]
+        expected_regions = call_kwargs['expected_regions']
         assert expected_regions == [], "Should check all regions when disabled (empty expected_regions list)"
         
         # Check that spurious activation warnings were displayed
@@ -830,7 +826,7 @@ class TestDetectiveDelegationReporting:
         )
         
         # Assert - This is what SHOULD happen (test will fail with current code)
-        assert result['detective_enabled'] is True
+        assert result['service_enabled'] is True
         assert result['delegation_status'] == 'check_failed'
         assert result['needs_changes'] is True, "Should flag delegation check failure as needing attention"
         assert any('delegation' in issue.lower() for issue in result['issues']), "Should report delegation check issue"
@@ -852,29 +848,29 @@ class TestDetectiveDelegationReporting:
                 # Region 1: Properly delegated
                 return {
                     'region': 'us-east-1',
-                    'detective_enabled': True,
+                    'service_enabled': True,
                     'delegation_status': 'delegated',
                     'member_count': 5,
-                    'graph_count': 1,
+                    'resource_count': 1,
                     'needs_changes': False,
                     'issues': [],
                     'actions': [],
                     'errors': [],
-                    'detective_details': ['✅ Delegated Admin: Security-Adm']
+                    'service_details': ['✅ Delegated Admin: Security-Adm']
                 }
             elif region == 'us-west-2':
                 # Region 2: Delegation check failed (API error) - FIXED
                 return {
                     'region': 'us-west-2',
-                    'detective_enabled': True,
+                    'service_enabled': True,
                     'delegation_status': 'unknown',
                     'member_count': 0,
-                    'graph_count': 1,
+                    'resource_count': 1,
                     'needs_changes': True,  # FIXED: Now True when delegation check fails
                     'issues': ['Unable to verify delegation status'],  # FIXED: Contains delegation check failure
                     'actions': ['Check IAM permissions for Organizations API'],
                     'errors': ['Check delegated administrators failed: AccessDenied'],
-                    'detective_details': ['❌ Delegation check failed: AccessDenied']
+                    'service_details': ['❌ Delegation check failed: AccessDenied']
                 }
         
         mock_check_detective.side_effect = mock_region_check
@@ -913,15 +909,15 @@ class TestDetectiveDelegationReporting:
             # Region with API permission error
             return {
                 'region': region,
-                'detective_enabled': True,
+                'service_enabled': True,
                 'delegation_status': 'unknown',
                 'member_count': 0,
-                'graph_count': 1,
+                'resource_count': 1,
                 'needs_changes': True,  # FIXED: Should be True for API errors
                 'issues': ['Unable to verify delegation status'],  # FIXED: Should have issue
                 'actions': ['Check IAM permissions for Organizations API'],
                 'errors': ['Check delegated administrators failed: AccessDenied'],
-                'detective_details': ['❌ Delegation check failed: AccessDenied']
+                'service_details': ['❌ Delegation check failed: AccessDenied']
             }
         
         mock_check_detective.side_effect = mock_region_check

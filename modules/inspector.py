@@ -15,7 +15,7 @@ COST-CONSCIOUS APPROACH:
 - Client controls specific scan types (ECR, EC2, Lambda) based on needs
 """
 
-from .utils import printc, get_client, DelegationChecker, YELLOW, LIGHT_BLUE, GREEN, RED, GRAY, END, BOLD
+from .utils import printc, get_client, DelegationChecker, AnomalousRegionChecker, create_service_status, YELLOW, LIGHT_BLUE, GREEN, RED, GRAY, END, BOLD
 
 def setup_inspector(enabled, params, dry_run, verbose):
     """Setup Amazon Inspector delegation and configuration with cost-conscious minimal approach."""
@@ -234,14 +234,20 @@ def setup_inspector(enabled, params, dry_run, verbose):
         if verbose:
             printc(GRAY, f"\n Checking for Inspector scanning in unexpected regions...")
         
-        anomalous_regions = check_anomalous_inspector_regions(regions, admin_account, security_account, verbose)
+        anomalous_regions = AnomalousRegionChecker.check_service_anomalous_regions(
+            service_name='inspector',
+            expected_regions=regions,
+            admin_account=admin_account,
+            security_account=security_account,
+            verbose=verbose
+        )
         
         if anomalous_regions:
             printc(YELLOW, f"\n⚠️  ANOMALOUS INSPECTOR SCANNING DETECTED:")
             printc(YELLOW, f"Inspector scanning is active in regions outside your configuration:")
             for anomaly in anomalous_regions:
-                region = anomaly['region']
-                scan_types = anomaly['scan_types_enabled']
+                region = anomaly.region
+                scan_types = anomaly.resource_count
                 printc(YELLOW, f"  • {region}: {scan_types} scan type(s) enabled (not in your regions list)")
             printc(YELLOW, f"")
             printc(YELLOW, f" ANOMALY RECOMMENDATIONS:")
@@ -287,7 +293,7 @@ def setup_inspector(enabled, params, dry_run, verbose):
             printc(LIGHT_BLUE, f"\n Inspector Configuration Summary:")
             printc(LIGHT_BLUE, f"  • Organization accounts covered: {total_members}")
             printc(LIGHT_BLUE, f"  • Scan types enabled across regions: {total_scan_types}")
-            printc(LIGHT_BLUE, f"  • Regions configured: {len([r for r, s in inspector_status.items() if s['inspector_enabled']])}")
+            printc(LIGHT_BLUE, f"  • Regions configured: {len([r for r, s in inspector_status.items() if s['service_enabled']])}")
             
             # Check auto-activation status
             auto_activation_info = check_inspector_auto_activation(regions, admin_account, security_account, cross_account_role, verbose)
@@ -302,8 +308,8 @@ def setup_inspector(enabled, params, dry_run, verbose):
                 printc(LIGHT_BLUE, "\n Current Amazon Inspector Configuration:")
                 for region, status in inspector_status.items():
                     printc(LIGHT_BLUE, f"\n Region: {region}")
-                    if status['inspector_enabled']:
-                        for detail in status['inspector_details']:
+                    if status['service_enabled']:
+                        for detail in status['service_details']:
                             printc(GRAY, f"  {detail}")
                     else:
                         printc(GRAY, "  Inspector not enabled in this region")
@@ -380,6 +386,7 @@ def setup_inspector(enabled, params, dry_run, verbose):
 def check_inspector_in_region(region, admin_account, security_account, cross_account_role, verbose=False):
     """
     Check AWS Inspector status in a specific region.
+    Returns standardized status dictionary with uniform field names.
     
     Handles all configuration scenarios:
     1. Not delegated - No Inspector delegation found
@@ -391,18 +398,15 @@ def check_inspector_in_region(region, admin_account, security_account, cross_acc
     import boto3
     from botocore.exceptions import ClientError
     
-    status = {
-        'region': region,
-        'inspector_enabled': False,
-        'delegation_status': 'unknown',
-        'member_count': 0,
-        'scan_types_enabled': 0,
-        'needs_changes': False,
-        'issues': [],
-        'actions': [],
-        'errors': [],
-        'inspector_details': []
-    }
+    # Create standardized status using new dataclass structure
+    status_obj = create_service_status('inspector', region)
+    
+    # Convert to dict for backward compatibility during transition
+    status = status_obj.to_dict()
+    
+    # Ensure all Inspector-specific fields are present (from InspectorRegionStatus)
+    if 'scan_types_enabled' not in status:
+        status['scan_types_enabled'] = 0
     
     try:
         # Check delegation using shared utility
@@ -419,19 +423,19 @@ def check_inspector_in_region(region, admin_account, security_account, cross_acc
         if delegation_result['delegation_check_failed']:
             status['delegation_status'] = 'check_failed'
             status['errors'].extend(delegation_result['errors'])
-            status['inspector_details'].append("❌ Delegation check failed")
+            status['service_details'].append("❌ Delegation check failed")
             status['needs_changes'] = True
             status['issues'].append("Could not verify Inspector delegation status")
             status['actions'].append("Verify Organizations API permissions and try again")
         elif is_delegated_to_security:
             status['delegation_status'] = 'delegated'
-            status['inspector_details'].append(f"✅ Delegated to Security account: {security_account}")
+            status['service_details'].append(f"✅ Delegated to Security account: {security_account}")
         else:
             if delegation_result['delegation_details']:
                 # Delegated to wrong account
                 status['delegation_status'] = 'delegated_wrong'
                 other_admin_ids = [admin.get('Id') for admin in delegation_result['delegation_details']]
-                status['inspector_details'].append(f"⚠️  Inspector delegated to other account(s): {', '.join(other_admin_ids)}")
+                status['service_details'].append(f"⚠️  Inspector delegated to other account(s): {', '.join(other_admin_ids)}")
                 status['issues'].append(f"Inspector delegated to {', '.join(other_admin_ids)} instead of Security account {security_account}")
                 status['actions'].append("Remove existing delegation and delegate to Security account")
                 status['needs_changes'] = True
@@ -441,7 +445,7 @@ def check_inspector_in_region(region, admin_account, security_account, cross_acc
                 status['needs_changes'] = True
                 status['issues'].append("Inspector is not delegated to Security account")
                 status['actions'].append("Delegate Inspector administration to Security account")
-                status['inspector_details'].append("❌ No delegation found - should delegate to Security account")
+                status['service_details'].append("❌ No delegation found - should delegate to Security account")
         # Check Inspector configuration from admin account perspective
         if is_delegated_to_security:
             try:
@@ -458,8 +462,8 @@ def check_inspector_in_region(region, admin_account, security_account, cross_acc
                             scan_types_enabled += 1
                 
                 status['scan_types_enabled'] = scan_types_enabled
-                status['inspector_enabled'] = True  # Delegation exists, consider enabled
-                status['inspector_details'].append(f"✅ Inspector Configuration: {scan_types_enabled} scan types enabled")
+                status['service_enabled'] = True  # Delegation exists, consider enabled
+                status['service_details'].append(f"✅ Inspector Configuration: {scan_types_enabled} scan types enabled")
                 
                 # Check member accounts
                 try:
@@ -469,7 +473,7 @@ def check_inspector_in_region(region, admin_account, security_account, cross_acc
                         all_members.extend(page.get('members', []))
                     
                     status['member_count'] = len(all_members)
-                    status['inspector_details'].append(f"✅ Inspector Members: {len(all_members)} accounts")
+                    status['service_details'].append(f"✅ Inspector Members: {len(all_members)} accounts")
                     
                     if len(all_members) == 0:
                         status['needs_changes'] = True
@@ -484,105 +488,25 @@ def check_inspector_in_region(region, admin_account, security_account, cross_acc
                             status_counts[member_status] = status_counts.get(member_status, 0) + 1
                         
                         for member_status, count in status_counts.items():
-                            status['inspector_details'].append(f"      {member_status}: {count} members")
+                            status['service_details'].append(f"      {member_status}: {count} members")
                             
                 except ClientError as e:
                     error_msg = f"List members failed: {str(e)}"
                     status['errors'].append(error_msg)
-                    status['inspector_details'].append(f"❌ Member check failed: {str(e)}")
+                    status['service_details'].append(f"❌ Member check failed: {str(e)}")
                         
             except ClientError as e:
                 error_msg = f"Inspector configuration check failed: {str(e)}"
                 status['errors'].append(error_msg)
-                status['inspector_details'].append(f"❌ Configuration check failed: {str(e)}")
+                status['service_details'].append(f"❌ Configuration check failed: {str(e)}")
         
     except Exception as e:
         error_msg = f"General error checking region {region}: {str(e)}"
         status['errors'].append(error_msg)
-        status['inspector_details'].append(f"❌ General error: {str(e)}")
+        status['service_details'].append(f"❌ General error: {str(e)}")
     
     return status
 
-def check_anomalous_inspector_regions(expected_regions, admin_account, security_account, verbose=False):
-    """
-    Check for Inspector scanning active in regions outside the expected list.
-    
-    This detects configuration drift where Inspector scanning was enabled
-    in regions not included in the current setup, which could generate unexpected costs.
-    
-    Returns list of anomalous regions with scanning details.
-    """
-    import boto3
-    from botocore.exceptions import ClientError
-    
-    anomalous_regions = []
-    
-    try:
-        # Get all AWS regions to check for anomalous scanning
-        ec2_client = get_client('ec2', admin_account, expected_regions[0] if expected_regions else 'us-east-1', 'AWSControlTowerExecution')
-        regions_response = ec2_client.describe_regions()
-        all_regions = [region['RegionName'] for region in regions_response['Regions']]
-        
-        # Check regions that are NOT in our expected list
-        unexpected_regions = [region for region in all_regions if region not in expected_regions]
-        
-        if verbose:
-            printc(GRAY, f"    Checking {len(unexpected_regions)} regions outside configuration...")
-        
-        for region in unexpected_regions:
-            try:
-                inspector_client = get_client('inspector2', admin_account, region, 'AWSControlTowerExecution')
-                
-                # Check if there's any scanning activity in this region
-                scanning_status = inspector_client.batch_get_account_status()
-                
-                scan_types_enabled = 0
-                scan_details = []
-                
-                for account in scanning_status.get('accounts', []):
-                    account_id = account.get('accountId')
-                    resource_state = account.get('resourceState', {})
-                    
-                    for resource_type, state_info in resource_state.items():
-                        if state_info.get('status') == 'ENABLED':
-                            scan_types_enabled += 1
-                            scan_details.append({
-                                'account_id': account_id,
-                                'resource_type': resource_type,
-                                'status': state_info.get('status')
-                            })
-                
-                if scan_types_enabled > 0:
-                    anomalous_regions.append({
-                        'region': region,
-                        'scan_types_enabled': scan_types_enabled,
-                        'scan_details': scan_details
-                    })
-                    
-                    if verbose:
-                        printc(YELLOW, f"    ⚠️  Anomalous scanning in {region}: {scan_types_enabled} types enabled")
-                        for detail in scan_details:
-                            printc(YELLOW, f"       Account {detail['account_id']}: {detail['resource_type']} = {detail['status']}")
-                            
-            except ClientError as e:
-                # Don't show common "service not available" errors
-                if 'Could not connect to the endpoint URL' not in str(e) and 'UnsupportedOperation' not in str(e):
-                    if verbose:
-                        printc(GRAY, f"    (Skipping {region}: {str(e)})")
-                continue
-            except Exception as e:
-                # Don't show common connectivity errors
-                if 'Could not connect to the endpoint URL' not in str(e):
-                    if verbose:
-                        printc(GRAY, f"    (Error checking {region}: {str(e)})")
-                continue
-        
-        return anomalous_regions
-        
-    except Exception as e:
-        if verbose:
-            printc(GRAY, f"    ⚠️  Anomaly check failed: {str(e)}")
-        return []
 
 def check_inspector_auto_activation(regions, admin_account, security_account, cross_account_role, verbose=False):
     """

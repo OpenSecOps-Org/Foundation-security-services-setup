@@ -7,7 +7,7 @@ Automates the manual steps:
 3. In the Security-Adm account, enable and configure GuardDuty auto-enable in all regions
 """
 
-from .utils import printc, get_client, DelegationChecker, YELLOW, LIGHT_BLUE, GREEN, RED, GRAY, END, BOLD
+from .utils import printc, get_client, DelegationChecker, AnomalousRegionChecker, create_service_status, YELLOW, LIGHT_BLUE, GREEN, RED, GRAY, END, BOLD
 
 def setup_guardduty(enabled, params, dry_run, verbose):
     """Setup AWS GuardDuty with proper organization delegation."""
@@ -51,20 +51,27 @@ def setup_guardduty(enabled, params, dry_run, verbose):
                 printc(GRAY, f"\n Checking all AWS regions for spurious GuardDuty activation...")
             
             # Pass empty list as expected_regions so ALL regions are checked
-            anomalous_regions = check_anomalous_guardduty_regions([], admin_account, security_account, cross_account_role, verbose)
+            anomalous_regions = AnomalousRegionChecker.check_service_anomalous_regions(
+                service_name='guardduty',
+                expected_regions=[],
+                admin_account=admin_account,
+                security_account=security_account,
+                cross_account_role=cross_account_role,
+                verbose=verbose
+            )
             
             if anomalous_regions:
                 printc(YELLOW, f"\n⚠️  SPURIOUS GUARDDUTY ACTIVATION DETECTED:")
                 printc(YELLOW, f"GuardDuty detectors found in unexpected regions:")
-                total_detectors = sum(anomaly['detector_count'] for anomaly in anomalous_regions)
+                total_detectors = sum(anomaly.resource_count for anomaly in anomalous_regions)
                 printc(YELLOW, f"")
                 printc(YELLOW, f"Current spurious GuardDuty resources:")
                 printc(YELLOW, f"  • {total_detectors} detector(s) across {len(anomalous_regions)} unexpected region(s)")
                 for anomaly in anomalous_regions:
-                    region = anomaly['region']
-                    detector_count = anomaly['detector_count']
-                    printc(YELLOW, f"     {region}: {detector_count} detector(s) enabled")
-                    for detector_detail in anomaly['detector_details']:
+                    region = anomaly.region
+                    resource_count = anomaly.resource_count
+                    printc(YELLOW, f"     {region}: {resource_count} detector(s) enabled")
+                    for detector_detail in anomaly.resource_details:
                         status = detector_detail['status']
                         frequency = detector_detail['finding_frequency']
                         printc(YELLOW, f"       Detector: {status} ({frequency})")
@@ -119,16 +126,23 @@ def setup_guardduty(enabled, params, dry_run, verbose):
         if verbose:
             printc(GRAY, f"\n Checking for GuardDuty detectors in unexpected regions...")
         
-        anomalous_regions = check_anomalous_guardduty_regions(regions, admin_account, security_account, cross_account_role, verbose)
+        anomalous_regions = AnomalousRegionChecker.check_service_anomalous_regions(
+            service_name='guardduty',
+            expected_regions=regions,
+            admin_account=admin_account,
+            security_account=security_account,
+            cross_account_role=cross_account_role,
+            verbose=verbose
+        )
         
         if anomalous_regions:
             any_changes_needed = True  # Anomalous regions require attention
             printc(YELLOW, f"\n⚠️  ANOMALOUS GUARDDUTY DETECTORS DETECTED:")
             printc(YELLOW, f"GuardDuty detectors are active in regions outside your configuration:")
             for anomaly in anomalous_regions:
-                region = anomaly['region']
-                detector_count = anomaly['detector_count']
-                printc(YELLOW, f"  • {region}: {detector_count} detector(s) enabled (not in your regions list)")
+                region = anomaly.region
+                resource_count = anomaly.resource_count
+                printc(YELLOW, f"  • {region}: {resource_count} detector(s) enabled (not in your regions list)")
             printc(YELLOW, f"")
             printc(YELLOW, f" ANOMALY RECOMMENDATIONS:")
             printc(YELLOW, f"  • Review: Determine if these detectors are intentional or configuration drift")
@@ -146,8 +160,8 @@ def setup_guardduty(enabled, params, dry_run, verbose):
                 printc(LIGHT_BLUE, "\n Current GuardDuty Configuration:")
                 for region, status in guardduty_status.items():
                     printc(LIGHT_BLUE, f"\n Region: {region}")
-                    if status['guardduty_enabled']:
-                        for detail in status['guardduty_details']:
+                    if status['service_enabled']:
+                        for detail in status['service_details']:
                             printc(GRAY, f"  {detail}")
                     else:
                         printc(GRAY, "  GuardDuty not enabled in this region")
@@ -184,6 +198,7 @@ def setup_guardduty(enabled, params, dry_run, verbose):
 def check_guardduty_in_region(region, admin_account, security_account, cross_account_role, verbose=False):
     """
     Check AWS GuardDuty status in a specific region.
+    Returns standardized status dictionary with uniform field names.
     
     Handles all configuration scenarios:
     1. Unconfigured service - No GuardDuty detectors found
@@ -196,18 +211,14 @@ def check_guardduty_in_region(region, admin_account, security_account, cross_acc
     import boto3
     from botocore.exceptions import ClientError
     
-    status = {
-        'region': region,
-        'guardduty_enabled': False,
-        'delegation_status': 'unknown',
-        'member_count': 0,
-        'organization_auto_enable': False,
-        'needs_changes': False,
-        'issues': [],
-        'actions': [],
-        'errors': [],
-        'guardduty_details': []
-    }
+    # Create standardized status using new dataclass structure
+    status_obj = create_service_status('guardduty', region)
+    
+    # Convert to dict for backward compatibility during transition
+    status = status_obj.to_dict()
+    
+    # Add GuardDuty-specific field
+    status['organization_auto_enable'] = False
     
     try:
         guardduty_client = get_client('guardduty', admin_account, region, cross_account_role)
@@ -222,12 +233,12 @@ def check_guardduty_in_region(region, admin_account, security_account, cross_acc
                 status['needs_changes'] = True
                 status['issues'].append("GuardDuty is not enabled in this region")
                 status['actions'].append("Enable GuardDuty and create detector")
-                status['guardduty_details'].append("❌ GuardDuty not enabled - no detectors found")
+                status['service_details'].append("❌ GuardDuty not enabled - no detectors found")
                 return status
             
-            status['guardduty_enabled'] = True
+            status['service_enabled'] = True
             detector_id = detector_ids[0]  # Usually only one detector per region
-            status['guardduty_details'].append(f"✅ GuardDuty Detector: {detector_id}")
+            status['service_details'].append(f"✅ GuardDuty Detector: {detector_id}")
             
             # Get detector details
             try:
@@ -237,27 +248,27 @@ def check_guardduty_in_region(region, admin_account, security_account, cross_acc
                 
                 # Case 4: Valid configuration vs Case 3: Weird configuration assessment
                 if detector_status == 'ENABLED':
-                    status['guardduty_details'].append(f"   ✅ Status: {detector_status}")
+                    status['service_details'].append(f"   ✅ Status: {detector_status}")
                 else:
                     # Case 3: Weird configuration - detector exists but not enabled
-                    status['guardduty_details'].append(f"   ⚠️  Status: {detector_status}")
+                    status['service_details'].append(f"   ⚠️  Status: {detector_status}")
                     status['needs_changes'] = True
                     status['issues'].append(f"Detector status is {detector_status}, should be ENABLED")
                     status['actions'].append("Enable GuardDuty detector")
                 
                 # Check finding frequency - FIFTEEN_MINUTES is the optimal standard
                 if finding_publishing_frequency == 'FIFTEEN_MINUTES':
-                    status['guardduty_details'].append(f"   ✅ Finding Frequency: {finding_publishing_frequency} (optimal)")
+                    status['service_details'].append(f"   ✅ Finding Frequency: {finding_publishing_frequency} (optimal)")
                 elif finding_publishing_frequency == 'ONE_HOUR':
-                    status['guardduty_details'].append(f"   Finding Frequency: {finding_publishing_frequency} (acceptable)")
-                    status['guardduty_details'].append("   Consider setting to FIFTEEN_MINUTES for optimal threat detection")
+                    status['service_details'].append(f"   Finding Frequency: {finding_publishing_frequency} (acceptable)")
+                    status['service_details'].append("   Consider setting to FIFTEEN_MINUTES for optimal threat detection")
                 elif finding_publishing_frequency == 'SIX_HOURS':
-                    status['guardduty_details'].append(f"   ⚠️  Finding Frequency: {finding_publishing_frequency} (suboptimal)")
+                    status['service_details'].append(f"   ⚠️  Finding Frequency: {finding_publishing_frequency} (suboptimal)")
                     status['needs_changes'] = True
                     status['issues'].append("Finding frequency is 6 hours - too slow for optimal threat detection")
                     status['actions'].append("Set finding frequency to FIFTEEN_MINUTES for optimal security")
                 else:
-                    status['guardduty_details'].append(f"   ⚠️  Finding Frequency: {finding_publishing_frequency}")
+                    status['service_details'].append(f"   ⚠️  Finding Frequency: {finding_publishing_frequency}")
                     status['needs_changes'] = True
                     status['issues'].append(f"Finding frequency is {finding_publishing_frequency} - should be FIFTEEN_MINUTES")
                     status['actions'].append("Set finding frequency to FIFTEEN_MINUTES for optimal threat detection")
@@ -265,7 +276,7 @@ def check_guardduty_in_region(region, admin_account, security_account, cross_acc
             except ClientError as e:
                 error_msg = f"Get detector details failed: {str(e)}"
                 status['errors'].append(error_msg)
-                status['guardduty_details'].append(f"❌ {error_msg}")
+                status['service_details'].append(f"❌ {error_msg}")
                 
         except ClientError as e:
             error_msg = f"List detectors failed: {str(e)}"
@@ -287,22 +298,22 @@ def check_guardduty_in_region(region, admin_account, security_account, cross_acc
         if delegation_result['delegation_check_failed']:
             status['delegation_status'] = 'check_failed'
             status['errors'].extend(delegation_result['errors'])
-            status['guardduty_details'].append("❌ Delegation check failed")
+            status['service_details'].append("❌ Delegation check failed")
             status['needs_changes'] = True
             status['issues'].append("Could not verify GuardDuty delegation status")
             status['actions'].append("Verify Organizations API permissions and try again")
         elif is_delegated_to_security:
             status['delegation_status'] = 'delegated'
-            status['guardduty_details'].append(f"✅ Delegated to Security account: {security_account}")
+            status['service_details'].append(f"✅ Delegated to Security account: {security_account}")
         else:
-            if status['guardduty_enabled']:
+            if status['service_enabled']:
                 status['delegation_status'] = 'not_delegated'
                 
                 # Check if delegated to other accounts
                 if delegation_result['delegation_details']:
                     other_admin_ids = [admin.get('Id') for admin in delegation_result['delegation_details']]
-                    status['guardduty_details'].append(f"⚠️  GuardDuty delegated to other account(s): {', '.join(other_admin_ids)}")
-                    status['guardduty_details'].append(f"⚠️  Expected delegation to Security account: {security_account}")
+                    status['service_details'].append(f"⚠️  GuardDuty delegated to other account(s): {', '.join(other_admin_ids)}")
+                    status['service_details'].append(f"⚠️  Expected delegation to Security account: {security_account}")
                     status['issues'].append(f"GuardDuty delegated to {', '.join(other_admin_ids)} instead of Security account {security_account}")
                     status['actions'].append("Remove existing delegation and delegate to Security account")
                     status['needs_changes'] = True
@@ -311,7 +322,7 @@ def check_guardduty_in_region(region, admin_account, security_account, cross_acc
                     status['needs_changes'] = True
                     status['issues'].append("GuardDuty enabled but not delegated to Security account")
                     status['actions'].append("Delegate GuardDuty administration to Security account")
-                    status['guardduty_details'].append("❌ No delegation found - should delegate to Security account")
+                    status['service_details'].append("❌ No delegation found - should delegate to Security account")
             
         # Get organization configuration and member accounts 
         # If delegation is detected, switch to delegated admin account for complete data
@@ -348,12 +359,12 @@ def check_guardduty_in_region(region, admin_account, security_account, cross_acc
                             
                             # Case 4: Valid configuration vs weird configuration assessment
                             if auto_enable and auto_enable_orgs == 'ALL':
-                                status['guardduty_details'].append(f"✅ Organization Auto-Enable: {auto_enable}")
-                                status['guardduty_details'].append(f"✅ Auto-Enable Org Members: {auto_enable_orgs}")
+                                status['service_details'].append(f"✅ Organization Auto-Enable: {auto_enable}")
+                                status['service_details'].append(f"✅ Auto-Enable Org Members: {auto_enable_orgs}")
                             else:
                                 # Case 3: Weird configuration - delegated but suboptimal settings
-                                status['guardduty_details'].append(f"⚠️  Organization Auto-Enable: {auto_enable}")
-                                status['guardduty_details'].append(f"⚠️  Auto-Enable Org Members: {auto_enable_orgs}")
+                                status['service_details'].append(f"⚠️  Organization Auto-Enable: {auto_enable}")
+                                status['service_details'].append(f"⚠️  Auto-Enable Org Members: {auto_enable_orgs}")
                                 
                                 if not auto_enable:
                                     status['needs_changes'] = True
@@ -382,12 +393,12 @@ def check_guardduty_in_region(region, admin_account, security_account, cross_acc
                                 for source_key, display_name in data_source_configs.items():
                                     is_enabled = datasources.get(source_key, {}).get('AutoEnable', False)
                                     enabled_text = "enabled" if is_enabled else "disabled"
-                                    status['guardduty_details'].append(f"   {display_name}: {enabled_text}")
+                                    status['service_details'].append(f"   {display_name}: {enabled_text}")
                                 
                         except ClientError as e:
                             error_msg = f"Organization configuration check failed: {str(e)}"
                             status['errors'].append(error_msg)
-                            status['guardduty_details'].append(f"❌ Org config failed: {str(e)}")
+                            status['service_details'].append(f"❌ Org config failed: {str(e)}")
                         
                         # Get member accounts from delegated admin with pagination
                         try:
@@ -399,7 +410,7 @@ def check_guardduty_in_region(region, admin_account, security_account, cross_acc
                                 all_members.extend(members)
                             
                             status['member_count'] = len(all_members)
-                            status['guardduty_details'].append(f"✅ Member Accounts: {status['member_count']} found")
+                            status['service_details'].append(f"✅ Member Accounts: {status['member_count']} found")
                             
                             # Analyze member statuses - detect weird configurations
                             if status['member_count'] > 0:
@@ -411,38 +422,38 @@ def check_guardduty_in_region(region, admin_account, security_account, cross_acc
                                 
                                 # Case 4: Valid configuration - all members enabled
                                 if enabled_members == status['member_count']:
-                                    status['guardduty_details'].append(f"   ✅ All {enabled_members} member accounts are enabled")
+                                    status['service_details'].append(f"   ✅ All {enabled_members} member accounts are enabled")
                                 else:
                                     # Case 3: Weird configurations - mixed member states
                                     if enabled_members > 0:
-                                        status['guardduty_details'].append(f"    Enabled Members: {enabled_members}")
+                                        status['service_details'].append(f"    Enabled Members: {enabled_members}")
                                     
                                     if invited_members > 0:
-                                        status['guardduty_details'].append(f"   ⚠️  Invited Members: {invited_members}")
+                                        status['service_details'].append(f"   ⚠️  Invited Members: {invited_members}")
                                         status['needs_changes'] = True
                                         status['issues'].append(f"{invited_members} member accounts are still in 'Invited' status")
                                         status['actions'].append("Follow up on pending member invitations")
                                     
                                     if disabled_members > 0:
-                                        status['guardduty_details'].append(f"   ❌ Disabled Members: {disabled_members}")
+                                        status['service_details'].append(f"   ❌ Disabled Members: {disabled_members}")
                                         status['needs_changes'] = True
                                         status['issues'].append(f"{disabled_members} member accounts are disabled")
                                         status['actions'].append("Enable disabled member accounts")
                                     
                                     if paused_members > 0:
-                                        status['guardduty_details'].append(f"     Paused Members: {paused_members}")
+                                        status['service_details'].append(f"     Paused Members: {paused_members}")
                                         status['needs_changes'] = True
                                         status['issues'].append(f"{paused_members} member accounts are paused")
                                         status['actions'].append("Resume paused member accounts")
                                     
                                     if removed_members > 0:
-                                        status['guardduty_details'].append(f"     Removed Members: {removed_members}")
+                                        status['service_details'].append(f"     Removed Members: {removed_members}")
                                         status['issues'].append(f"{removed_members} member accounts are in 'Removed' status")
                                         status['actions'].append("Clean up removed member accounts or re-invite if needed")
                                         
                             else:
                                 # Case 3: Weird configuration - delegation but no members found
-                                status['guardduty_details'].append("⚠️  No member accounts found despite delegation")
+                                status['service_details'].append("⚠️  No member accounts found despite delegation")
                                 status['needs_changes'] = True
                                 status['issues'].append("Delegated admin has no member accounts - organization setup may be incomplete")
                                 status['actions'].append("Investigate organization member account setup")
@@ -450,133 +461,21 @@ def check_guardduty_in_region(region, admin_account, security_account, cross_acc
                         except ClientError as e:
                             error_msg = f"List members failed: {str(e)}"
                             status['errors'].append(error_msg)
-                            status['guardduty_details'].append(f"❌ Member list failed: {str(e)}")
+                            status['service_details'].append(f"❌ Member list failed: {str(e)}")
                     else:
-                        status['guardduty_details'].append("⚠️  No detectors found in delegated admin account")
+                        status['service_details'].append("⚠️  No detectors found in delegated admin account")
                         
                 except ClientError as e:
                     error_msg = f"Delegated admin detector check failed: {str(e)}"
                     status['errors'].append(error_msg)
-                    status['guardduty_details'].append(f"❌ Delegated admin check failed: {str(e)}")
+                    status['service_details'].append(f"❌ Delegated admin check failed: {str(e)}")
             else:
-                status['guardduty_details'].append("❌ Failed to create cross-account client to security account")
+                status['service_details'].append("❌ Failed to create cross-account client to security account")
                 
     except Exception as e:
         error_msg = f"General error checking region {region}: {str(e)}"
         status['errors'].append(error_msg)
-        status['guardduty_details'].append(f"❌ General error: {str(e)}")
+        status['service_details'].append(f"❌ General error: {str(e)}")
     
     return status
 
-def check_anomalous_guardduty_regions(expected_regions, admin_account, security_account, cross_account_role=None, verbose=False):
-    """
-    Check for GuardDuty detectors active in regions outside the expected list.
-    
-    This detects configuration drift where GuardDuty was enabled in regions
-    not included in the current setup, which could generate unexpected costs.
-    
-    Returns list of anomalous regions with detector details.
-    """
-    import boto3
-    from botocore.exceptions import ClientError
-    
-    anomalous_regions = []
-    
-    try:
-        # Get all AWS regions to check for anomalous detectors
-        ec2_client = get_client('ec2', admin_account, expected_regions[0] if expected_regions else 'us-east-1', cross_account_role)
-        regions_response = ec2_client.describe_regions()
-        all_regions = [region['RegionName'] for region in regions_response['Regions']]
-        
-        # Check regions that are NOT in our expected list
-        unexpected_regions = [region for region in all_regions if region not in expected_regions]
-        
-        if verbose:
-            printc(GRAY, f"    Checking {len(unexpected_regions)} regions outside configuration...")
-        
-        for region in unexpected_regions:
-            try:
-                guardduty_client = get_client('guardduty', admin_account, region, cross_account_role)
-                
-                # Check if there are any detectors in this region
-                detectors_response = guardduty_client.list_detectors()
-                detector_ids = detectors_response.get('DetectorIds', [])
-                
-                detector_details = []
-                for detector_id in detector_ids:
-                    try:
-                        detector_info = guardduty_client.get_detector(DetectorId=detector_id)
-                        detector_details.append({
-                            'detector_id': detector_id,
-                            'status': detector_info.get('Status', 'Unknown'),
-                            'finding_frequency': detector_info.get('FindingPublishingFrequency', 'Unknown')
-                        })
-                    except ClientError as e:
-                        if verbose:
-                            printc(GRAY, f"    (Could not get detector details for {detector_id}: {str(e)})")
-                        detector_details.append({
-                            'detector_id': detector_id,
-                            'status': 'Unknown',
-                            'finding_frequency': 'Unknown'
-                        })
-                
-                if detector_details:
-                    # Collect account details for better security actionability
-                    account_details = []
-                    
-                    # Add admin account details
-                    account_details.append({
-                        'account_id': admin_account,
-                        'account_status': 'ADMIN_ACCOUNT',
-                        'relationship_status': 'Self',
-                        'detector_status': 'ENABLED'  # Admin account has the detector
-                    })
-                    
-                    # Get member account details if any
-                    try:
-                        members_response = guardduty_client.list_members()
-                        members = members_response.get('Members', [])
-                        for member in members:
-                            account_details.append({
-                                'account_id': member.get('AccountId'),
-                                'account_status': 'MEMBER_ACCOUNT',
-                                'relationship_status': member.get('RelationshipStatus', 'Unknown'),
-                                'detector_status': member.get('RelationshipStatus', 'Unknown'),  # Use relationship status as detector status
-                                'invited_at': member.get('InvitedAt'),
-                                'updated_at': member.get('UpdatedAt')
-                            })
-                    except ClientError as e:
-                        if verbose:
-                            printc(GRAY, f"    (Could not get member details for {region}: {str(e)})")
-                    
-                    anomalous_regions.append({
-                        'region': region,
-                        'detector_count': len(detector_details),
-                        'detector_details': detector_details,
-                        'account_details': account_details
-                    })
-                    
-                    if verbose:
-                        printc(YELLOW, f"    ⚠️  Anomalous detectors in {region}: {len(detector_details)} detector(s)")
-                        for detail in detector_details:
-                            printc(YELLOW, f"       Detector {detail['detector_id']}: {detail['status']} ({detail['finding_frequency']})")
-                            
-            except ClientError as e:
-                # Don't show common "service not available" errors
-                if 'Could not connect to the endpoint URL' not in str(e) and 'UnsupportedOperation' not in str(e):
-                    if verbose:
-                        printc(GRAY, f"    (Skipping {region}: {str(e)})")
-                continue
-            except Exception as e:
-                # Don't show common connectivity errors
-                if 'Could not connect to the endpoint URL' not in str(e):
-                    if verbose:
-                        printc(GRAY, f"    (Error checking {region}: {str(e)})")
-                continue
-        
-        return anomalous_regions
-        
-    except Exception as e:
-        if verbose:
-            printc(GRAY, f"    ⚠️  Anomaly check failed: {str(e)}")
-        return []

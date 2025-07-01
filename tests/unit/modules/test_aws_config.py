@@ -139,13 +139,13 @@ class TestAWSConfigUserFeedback:
         # Arrange - Mock Config needing changes to trigger dry-run output
         mock_check_config.return_value = {
             'region': 'us-east-1',
-            'config_enabled': False,
+            'service_enabled': False,
             'records_global_iam': False,
             'needs_changes': True,
             'issues': ['Config not enabled'],
             'actions': ['Enable AWS Config'],
             'errors': [],
-            'config_details': []
+            'service_details': []
         }
         params = create_test_params(regions=['us-east-1', 'us-west-2'])
         
@@ -229,16 +229,16 @@ class TestAWSConfigRegionHandling:
         
         Single-region deployments still need IAM global event recording somewhere.
         """
-        # Arrange - Mock configuration check
+        # Arrange - Mock configuration check  
         mock_check_config.return_value = {
             'region': 'us-east-1',
-            'config_enabled': True,
+            'service_enabled': True,  # Updated to use standardized field name
             'records_global_iam': True,
             'needs_changes': False,
             'issues': [],
             'actions': [],
             'errors': [],
-            'config_details': []
+            'service_details': []  # Updated to use standardized field name
         }
         params = create_test_params(regions=['us-east-1'])
         
@@ -267,13 +267,13 @@ class TestAWSConfigRegionHandling:
         # Arrange - Mock configuration check
         mock_check_config.return_value = {
             'region': 'test-region',
-            'config_enabled': True,
+            'service_enabled': True,
             'records_global_iam': True,
             'needs_changes': False,
             'issues': [],
             'actions': [],
             'errors': [],
-            'config_details': []
+            'service_details': []
         }
         params = create_test_params(regions=['eu-west-1', 'us-east-1', 'ap-southeast-1'])
         
@@ -422,11 +422,11 @@ class TestAWSConfigConfigurationScenarios:
         )
         
         # Assert
-        assert result['config_enabled'] is False
+        assert result['service_enabled'] is False
         assert result['needs_changes'] is True
         assert "No configuration recorders found" in result['issues']
         assert "Create configuration recorder" in result['actions']
-        assert "❌ No configuration recorders found" in result['config_details']
+        assert "❌ No configuration recorders found" in result['service_details']
     
     @patch('modules.aws_config.get_client')
     def test_scenario_2_main_region_missing_iam_global_recording(self, mock_get_client):
@@ -469,13 +469,13 @@ class TestAWSConfigConfigurationScenarios:
         )
         
         # Assert
-        assert result['config_enabled'] is True
+        assert result['service_enabled'] is True
         assert result['records_global_iam'] is False
         assert result['needs_changes'] is True
         assert "Main region should record IAM global events but doesn't" in result['issues']
         assert "Enable IAM global resource recording" in result['actions']
         # Check that IAM global resources are marked as excluded in details
-        details_str = '\n'.join(result['config_details'])
+        details_str = '\n'.join(result['service_details'])
         assert "IAM Global Resources: ✅ Excluded" in details_str
     
     @patch('modules.aws_config.get_client')
@@ -518,13 +518,13 @@ class TestAWSConfigConfigurationScenarios:
         )
         
         # Assert
-        assert result['config_enabled'] is True
+        assert result['service_enabled'] is True
         assert result['records_global_iam'] is True
         assert result['needs_changes'] is True
         assert "Non-main region should NOT record IAM global events" in result['issues']
         assert "Disable IAM global resource recording" in result['actions']
         # Check that IAM global resources are marked as included in details
-        details_str = '\n'.join(result['config_details'])
+        details_str = '\n'.join(result['service_details'])
         assert "IAM Global Resources: ✅ Included" in details_str
     
     @patch('modules.aws_config.get_client')
@@ -567,11 +567,11 @@ class TestAWSConfigConfigurationScenarios:
         )
         
         # Assert
-        assert result['config_enabled'] is True
+        assert result['service_enabled'] is True
         assert result['needs_changes'] is True
         assert "No delivery channels found" in result['issues']
         assert "Create delivery channel" in result['actions']
-        assert "❌ No delivery channels found" in result['config_details']
+        assert "❌ No delivery channels found" in result['service_details']
     
     @patch('modules.aws_config.get_client')
     def test_scenario_4_valid_configuration_optimal_setup(self, mock_get_client):
@@ -637,14 +637,14 @@ class TestAWSConfigConfigurationScenarios:
         )
         
         # Assert - Valid configuration requires no changes
-        assert result['config_enabled'] is True
+        assert result['service_enabled'] is True
         assert result['records_global_iam'] is True
         assert result['needs_changes'] is False, "Valid configuration should not need changes"
         assert result['issues'] == [], "Valid configuration should have no issues"
         assert result['actions'] == [], "Valid configuration should need no actions"
         
         # Check that optimal settings are properly detected
-        details_str = '\n'.join(result['config_details'])
+        details_str = '\n'.join(result['service_details'])
         assert "✅ Configuration Recorders: 1 found" in details_str
         assert "Recording: All supported resources" in details_str
         assert "IAM Global Resources: ✅ Included" in details_str
@@ -689,40 +689,37 @@ class TestAwsConfigAnomalousRegionDetection:
     """
     
     @patch('modules.aws_config.printc')
-    @patch('modules.aws_config.check_anomalous_config_regions')
+    @patch('modules.aws_config.AnomalousRegionChecker.check_service_anomalous_regions')
     def test_when_anomalous_config_found_then_show_cost_warnings(self, mock_anomaly_check, mock_print, mock_aws_services):
         """
         GIVEN: AWS Config configuration recorders exist in regions outside expected configuration
         WHEN: setup_aws_config detects anomalous regions
         THEN: Should warn about unexpected costs and configuration drift
         """
-        # Arrange - Mock anomalous regions found
-        mock_anomaly_check.return_value = [
+        # Arrange - Mock anomalous regions found using dataclass objects
+        from modules.utils import create_anomalous_status
+        
+        anomaly1 = create_anomalous_status('ap-southeast-2', 1)
+        anomaly1.resource_details = [
             {
-                'region': 'ap-southeast-2',
-                'recorder_count': 1,
-                'recorder_details': [
-                    {
-                        'recorder_name': 'default',
-                        'recording_enabled': True,
-                        'recording_mode': 'CONTINUOUS',
-                        'include_global_resources': False
-                    }
-                ]
-            },
-            {
-                'region': 'ca-central-1',
-                'recorder_count': 1,
-                'recorder_details': [
-                    {
-                        'recorder_name': 'custom-recorder',
-                        'recording_enabled': True,
-                        'recording_mode': 'DAILY',
-                        'include_global_resources': True
-                    }
-                ]
+                'recorder_name': 'default',
+                'recording_enabled': True,
+                'recording_mode': 'CONTINUOUS',
+                'include_global_resources': False
             }
         ]
+        
+        anomaly2 = create_anomalous_status('ca-central-1', 1)
+        anomaly2.resource_details = [
+            {
+                'recorder_name': 'custom-recorder',
+                'recording_enabled': True,
+                'recording_mode': 'DAILY',
+                'include_global_resources': True
+            }
+        ]
+        
+        mock_anomaly_check.return_value = [anomaly1, anomaly2]
         
         params = create_test_params()
         

@@ -7,7 +7,7 @@ Automates the manual steps:
 2. In Security-Adm, configure Detective in all your selected regions.
 """
 
-from .utils import printc, get_client, DelegationChecker, YELLOW, LIGHT_BLUE, GREEN, RED, GRAY, END, BOLD
+from .utils import printc, get_client, DelegationChecker, AnomalousRegionChecker, create_service_status, YELLOW, LIGHT_BLUE, GREEN, RED, GRAY, END, BOLD
 
 def setup_detective(enabled, params, dry_run, verbose):
     """Setup Amazon Detective delegation and configuration with comprehensive discovery."""
@@ -121,21 +121,28 @@ def setup_detective(enabled, params, dry_run, verbose):
                     printc(GRAY, f"    Checking all AWS regions for spurious Detective activation...")
                 
                 # Pass empty list as expected_regions so ALL regions are checked
-                anomalous_regions = check_anomalous_detective_regions([], admin_account, security_account, cross_account_role, verbose)
+                anomalous_regions = AnomalousRegionChecker.check_service_anomalous_regions(
+                    service_name='detective',
+                    expected_regions=[],
+                    admin_account=admin_account,
+                    security_account=security_account,
+                    cross_account_role=cross_account_role,
+                    verbose=verbose
+                )
                 
                 if anomalous_regions:
                     printc(YELLOW, f"\n⚠️  SPURIOUS DETECTIVE ACTIVATION DETECTED:")
                     printc(YELLOW, f"Detective graphs found in unexpected regions:")
-                    total_graphs = sum(anomaly['graph_count'] for anomaly in anomalous_regions)
+                    total_graphs = sum(anomaly.resource_count for anomaly in anomalous_regions)
                     printc(YELLOW, f"")
                     printc(YELLOW, f"Current spurious Detective resources:")
                     printc(YELLOW, f"  • {total_graphs} investigation graph(s) across {len(anomalous_regions)} unexpected region(s)")
                     for anomaly in anomalous_regions:
-                        region = anomaly['region']
-                        graph_count = anomaly['graph_count']
-                        printc(YELLOW, f"     {region}: {graph_count} graph(s) active")
-                        for graph_detail in anomaly['graph_details']:
-                            member_count = graph_detail['member_count']
+                        region = anomaly.region
+                        resource_count = anomaly.resource_count
+                        printc(YELLOW, f"     {region}: {resource_count} graph(s) active")
+                        for graph_detail in anomaly.resource_details:
+                            member_count = graph_detail.get('member_count', 0)
                             printc(YELLOW, f"       Graph: {member_count} member(s)")
                     printc(YELLOW, f"")
                     printc(YELLOW, f" SPURIOUS ACTIVATION RECOMMENDATIONS:")
@@ -208,16 +215,23 @@ def setup_detective(enabled, params, dry_run, verbose):
         if verbose:
             printc(GRAY, f"\n Checking for Detective graphs in unexpected regions...")
         
-        anomalous_regions = check_anomalous_detective_regions(regions, admin_account, security_account, cross_account_role, verbose)
+        anomalous_regions = AnomalousRegionChecker.check_service_anomalous_regions(
+            service_name='detective',
+            expected_regions=regions,
+            admin_account=admin_account,
+            security_account=security_account,
+            cross_account_role=cross_account_role,
+            verbose=verbose
+        )
         
         if anomalous_regions:
             any_changes_needed = True  # Anomalous regions require attention
             printc(YELLOW, f"\n⚠️  ANOMALOUS DETECTIVE GRAPHS DETECTED:")
             printc(YELLOW, f"Detective investigation graphs are active in regions outside your configuration:")
             for anomaly in anomalous_regions:
-                region = anomaly['region']
-                graph_count = anomaly['graph_count']
-                printc(YELLOW, f"  • {region}: {graph_count} graph(s) active (not in your regions list)")
+                region = anomaly.region
+                resource_count = anomaly.resource_count
+                printc(YELLOW, f"  • {region}: {resource_count} graph(s) active (not in your regions list)")
             printc(YELLOW, f"")
             printc(YELLOW, f"ANOMALY RECOMMENDATIONS:")
             printc(YELLOW, f"  • Review: Determine if these graphs are intentional or configuration drift")
@@ -235,8 +249,8 @@ def setup_detective(enabled, params, dry_run, verbose):
                 printc(LIGHT_BLUE, "\n Current Amazon Detective Configuration:")
                 for region, status in detective_status.items():
                     printc(LIGHT_BLUE, f"\n Region: {region}")
-                    if status['detective_enabled']:
-                        for detail in status['detective_details']:
+                    if status['service_enabled']:
+                        for detail in status['service_details']:
                             printc(GRAY, f"  {detail}")
                     else:
                         printc(GRAY, "  Detective not enabled in this region")
@@ -263,12 +277,12 @@ def setup_detective(enabled, params, dry_run, verbose):
                     printc(YELLOW, f"    • Missing: Detective delegation to Security account")
                     printc(YELLOW, f"      Recommend: Delegate Detective administration to {security_account}")
                 
-                if status['detective_enabled'] and status['member_count'] == 0:
+                if status['service_enabled'] and status['member_count'] == 0:
                     printc(YELLOW, f"    • Missing: Organization member accounts")
                     printc(YELLOW, f"      Recommend: Add existing organization accounts to Detective")
                     printc(YELLOW, f"      Recommend: Enable auto-enrollment for new accounts")
                 
-                if not status['detective_enabled']:
+                if not status['service_enabled']:
                     printc(YELLOW, f"    • Missing: Detective investigation capabilities")
                     printc(YELLOW, f"      Recommend: Enable Detective investigation capabilities")
                     printc(YELLOW, f"      Recommend: Add existing organization accounts as Detective members")
@@ -288,18 +302,18 @@ def setup_detective(enabled, params, dry_run, verbose):
                     printc(YELLOW, f"  {action_count}. Delegate Detective administration to Security account {security_account} in {region}")
                     action_count += 1
                 
-                if not status['detective_enabled']:
+                if not status['service_enabled']:
                     printc(YELLOW, f"  {action_count}. Enable Detective investigation capabilities in {region}")
                     action_count += 1
                     printc(YELLOW, f"  {action_count}. Configure data retention settings for Detective in {region}")
                     action_count += 1
                 
-                if status['detective_enabled'] and status['member_count'] == 0:
+                if status['service_enabled'] and status['member_count'] == 0:
                     printc(YELLOW, f"  {action_count}. Invite all organization accounts to Detective in {region}")
                     action_count += 1
                     printc(YELLOW, f"  {action_count}. Enable automatic member invitation for new accounts in {region}")
                     action_count += 1
-                elif not status['detective_enabled']:
+                elif not status['service_enabled']:
                     # If no graph exists, these steps are part of initial setup
                     printc(YELLOW, f"  {action_count}. Invite all organization accounts to Detective in {region}")
                     action_count += 1
@@ -365,6 +379,7 @@ def check_guardduty_prerequisite(admin_account, security_account, cross_account_
 def check_detective_in_region(region, admin_account, security_account, cross_account_role, verbose=False):
     """
     Check AWS Detective status in a specific region.
+    Returns standardized status dictionary with uniform field names.
     
     Handles all configuration scenarios:
     1. Not delegated - No Detective delegation found
@@ -377,18 +392,15 @@ def check_detective_in_region(region, admin_account, security_account, cross_acc
     import boto3
     from botocore.exceptions import ClientError
     
-    status = {
-        'region': region,
-        'detective_enabled': False,
-        'delegation_status': 'unknown',
-        'member_count': 0,
-        'graph_arn': None,
-        'needs_changes': False,
-        'issues': [],
-        'actions': [],
-        'errors': [],
-        'detective_details': []
-    }
+    # Create standardized status using new dataclass structure
+    status_obj = create_service_status('detective', region)
+    
+    # Convert to dict for backward compatibility during transition
+    status = status_obj.to_dict()
+    
+    # Ensure all Detective-specific fields are present (from DetectiveRegionStatus)
+    if 'graph_arn' not in status:
+        status['graph_arn'] = None
     
     try:
         # Check delegation status using shared utility
@@ -403,19 +415,19 @@ def check_detective_in_region(region, admin_account, security_account, cross_acc
         if delegation_result['delegation_check_failed']:
             status['delegation_status'] = 'check_failed'
             status['errors'].extend(delegation_result['errors'])
-            status['detective_details'].append("❌ Delegation check failed")
+            status['service_details'].append("❌ Delegation check failed")
             status['needs_changes'] = True
             status['issues'].append("Could not verify Detective delegation status")
             status['actions'].append("Verify Organizations API permissions and try again")
         elif delegation_result['is_delegated_to_security']:
             status['delegation_status'] = 'delegated'
-            status['detective_details'].append(f"✅ Delegated to Security account: {security_account}")
+            status['service_details'].append(f"✅ Delegated to Security account: {security_account}")
         else:
             # Check if delegated to other accounts
             if delegation_result['delegation_details']:
                 other_admin_ids = [admin.get('Id') for admin in delegation_result['delegation_details']]
                 status['delegation_status'] = 'delegated_wrong'
-                status['detective_details'].append(f"⚠️  Detective delegated to other account(s): {', '.join(other_admin_ids)}")
+                status['service_details'].append(f"⚠️  Detective delegated to other account(s): {', '.join(other_admin_ids)}")
                 status['issues'].append(f"Detective delegated to {', '.join(other_admin_ids)} instead of Security account {security_account}")
                 status['actions'].append("Remove existing delegation and delegate to Security account")
                 status['needs_changes'] = True
@@ -425,7 +437,7 @@ def check_detective_in_region(region, admin_account, security_account, cross_acc
                 status['needs_changes'] = True
                 status['issues'].append("Detective is not delegated to Security account")
                 status['actions'].append("Delegate Detective administration to Security account")
-                status['detective_details'].append("❌ No delegation found - should delegate to Security account")
+                status['service_details'].append("❌ No delegation found - should delegate to Security account")
         
         # Check Detective graphs from admin account perspective
         try:
@@ -436,17 +448,17 @@ def check_detective_in_region(region, admin_account, security_account, cross_acc
             all_graphs = response.get('GraphList', [])
             
             if all_graphs:
-                status['detective_enabled'] = True
+                status['service_enabled'] = True
                 status['graph_arn'] = all_graphs[0].get('Arn')  # Typically one graph per region
-                status['detective_details'].append(f"✅ Detective Graph: {len(all_graphs)} found")
+                status['service_details'].append(f"✅ Detective Graph: {len(all_graphs)} found")
                 
                 # Check each graph for member details
                 for graph in all_graphs:
                     graph_arn = graph.get('Arn')
                     graph_created = graph.get('CreatedTime')
                     
-                    status['detective_details'].append(f"    Graph ARN: {graph_arn}")
-                    status['detective_details'].append(f"      Created: {graph_created}")
+                    status['service_details'].append(f"    Graph ARN: {graph_arn}")
+                    status['service_details'].append(f"      Created: {graph_created}")
                     
                     # Get member accounts for this graph
                     try:
@@ -456,7 +468,7 @@ def check_detective_in_region(region, admin_account, security_account, cross_acc
                             all_members.extend(page.get('MemberDetails', []))
                         
                         status['member_count'] = len(all_members)
-                        status['detective_details'].append(f"      Members: {len(all_members)} accounts")
+                        status['service_details'].append(f"      Members: {len(all_members)} accounts")
                         
                         if len(all_members) == 0:
                             status['needs_changes'] = True
@@ -469,14 +481,14 @@ def check_detective_in_region(region, admin_account, security_account, cross_acc
                             enabled_count = sum(1 for member in all_members if member.get('Status') == 'ENABLED')
                             
                             if invited_count > 0:
-                                status['detective_details'].append(f"      Pending Invitations: {invited_count}")
+                                status['service_details'].append(f"      Pending Invitations: {invited_count}")
                             if enabled_count > 0:
-                                status['detective_details'].append(f"      Active Members: {enabled_count}")
+                                status['service_details'].append(f"      Active Members: {enabled_count}")
                                 
                     except ClientError as e:
                         error_msg = f"List members failed for graph {graph_arn}: {str(e)}"
                         status['errors'].append(error_msg)
-                        status['detective_details'].append(f"      ❌ Member check failed: {str(e)}")
+                        status['service_details'].append(f"      ❌ Member check failed: {str(e)}")
                         
             else:
                 # No graphs found
@@ -484,14 +496,14 @@ def check_detective_in_region(region, admin_account, security_account, cross_acc
                     status['needs_changes'] = True
                     status['issues'].append("Detective delegated but no investigation graph found")
                     status['actions'].append("Enable Detective investigation graph")
-                    status['detective_details'].append("❌ No investigation graph found despite delegation")
+                    status['service_details'].append("❌ No investigation graph found despite delegation")
                 else:
-                    status['detective_details'].append("❌ No investigation graph found")
+                    status['service_details'].append("❌ No investigation graph found")
                     
         except ClientError as e:
             error_msg = f"List graphs failed: {str(e)}"
             status['errors'].append(error_msg)
-            status['detective_details'].append(f"❌ List graphs failed: {str(e)}")
+            status['service_details'].append(f"❌ List graphs failed: {str(e)}")
         
         # Get comprehensive organization data if delegated to security account
         if (status['delegation_status'] == 'delegated' and 
@@ -512,14 +524,14 @@ def check_detective_in_region(region, admin_account, security_account, cross_acc
                     all_delegated_graphs = delegated_response.get('GraphList', [])
                     
                     if all_delegated_graphs:
-                        status['detective_details'].append(f"✅ Delegated Admin View: {len(all_delegated_graphs)} graph(s)")
+                        status['service_details'].append(f"✅ Delegated Admin View: {len(all_delegated_graphs)} graph(s)")
                         
                         # Update from delegated admin perspective (more authoritative)
-                        status['detective_enabled'] = True
+                        status['service_enabled'] = True
                         
                         for graph in all_delegated_graphs:
                             graph_arn = graph.get('Arn')
-                            status['detective_details'].append(f"    Delegated Graph: {graph_arn}")
+                            status['service_details'].append(f"    Delegated Graph: {graph_arn}")
                             
                             # Get comprehensive member data from delegated admin
                             try:
@@ -534,138 +546,28 @@ def check_detective_in_region(region, admin_account, security_account, cross_acc
                                     enabled_members = [m for m in all_members if m.get('Status') == 'ENABLED']
                                     invited_members = [m for m in all_members if m.get('Status') == 'INVITED']
                                     
-                                    status['detective_details'].append(f"       Total Members: {len(all_members)}")
-                                    status['detective_details'].append(f"      ✅ Active Members: {len(enabled_members)}")
+                                    status['service_details'].append(f"       Total Members: {len(all_members)}")
+                                    status['service_details'].append(f"      ✅ Active Members: {len(enabled_members)}")
                                     if invited_members:
-                                        status['detective_details'].append(f"       Pending Invitations: {len(invited_members)}")
+                                        status['service_details'].append(f"       Pending Invitations: {len(invited_members)}")
                                 else:
-                                    status['detective_details'].append(f"      ❌ No member accounts found")
+                                    status['service_details'].append(f"      ❌ No member accounts found")
                                     
                             except ClientError as e:
-                                status['detective_details'].append(f"      ⚠️  Member check failed: {str(e)}")
+                                status['service_details'].append(f"      ⚠️  Member check failed: {str(e)}")
                         
                     else:
-                        status['detective_details'].append("⚠️  No graphs found in delegated admin account")
+                        status['service_details'].append("⚠️  No graphs found in delegated admin account")
                         
                 except ClientError as e:
                     error_msg = f"Delegated admin graph check failed: {str(e)}"
                     status['errors'].append(error_msg)
-                    status['detective_details'].append(f"❌ Delegated admin check failed: {str(e)}")
+                    status['service_details'].append(f"❌ Delegated admin check failed: {str(e)}")
                 
     except Exception as e:
         error_msg = f"General error checking region {region}: {str(e)}"
         status['errors'].append(error_msg)
-        status['detective_details'].append(f"❌ General error: {str(e)}")
+        status['service_details'].append(f"❌ General error: {str(e)}")
     
     return status
 
-def check_anomalous_detective_regions(expected_regions, admin_account, security_account, cross_account_role=None, verbose=False):
-    """
-    Check for Detective investigation graphs active in regions outside the expected list.
-    
-    This detects configuration drift where Detective was enabled in regions
-    not included in the current setup, which could generate unexpected costs.
-    
-    Returns list of anomalous regions with graph details and account details.
-    """
-    import boto3
-    from botocore.exceptions import ClientError
-    
-    anomalous_regions = []
-    
-    try:
-        # Get all AWS regions to check for anomalous Detective graphs
-        ec2_client = get_client('ec2', admin_account, expected_regions[0] if expected_regions else 'us-east-1', cross_account_role or 'AWSControlTowerExecution')
-        regions_response = ec2_client.describe_regions()
-        all_regions = [region['RegionName'] for region in regions_response['Regions']]
-        
-        # Check regions that are NOT in our expected list
-        unexpected_regions = [region for region in all_regions if region not in expected_regions]
-        
-        if verbose:
-            printc(GRAY, f"    Checking {len(unexpected_regions)} regions outside configuration...")
-        
-        for region in unexpected_regions:
-            try:
-                detective_client = get_client('detective', admin_account, region, cross_account_role or 'AWSControlTowerExecution')
-                
-                # Check if there are any Detective graphs in this region
-                graphs_response = detective_client.list_graphs()
-                graphs = graphs_response.get('GraphList', [])
-                
-                graph_details = []
-                account_details = []
-                
-                # Add admin account details 
-                account_details.append({
-                    'account_id': admin_account,
-                    'account_status': 'ADMIN_ACCOUNT',
-                    'graph_status': 'ENABLED' if graphs else 'DISABLED',
-                    'detective_status': 'ENABLED' if graphs else 'DISABLED'
-                })
-                
-                for graph in graphs:
-                    try:
-                        # Get member accounts for this graph to check if it's active
-                        members_paginator = detective_client.get_paginator('list_members')
-                        all_members = []
-                        for page in members_paginator.paginate(GraphArn=graph['Arn']):
-                            all_members.extend(page.get('MemberDetails', []))
-                        
-                        # Add member account details for better security actionability
-                        for member in all_members:
-                            account_details.append({
-                                'account_id': member.get('AccountId'),
-                                'member_status': member.get('Status', 'Unknown'),
-                                'graph_status': member.get('Status', 'Unknown'),
-                                'detective_status': member.get('Status', 'Unknown'),
-                                'invited_time': member.get('InvitedTime'),
-                                'updated_time': member.get('UpdatedTime')
-                            })
-                        
-                        graph_details.append({
-                            'graph_arn': graph['Arn'],
-                            'created_time': graph.get('CreatedTime', 'Unknown'),
-                            'member_count': len(all_members)
-                        })
-                    except ClientError as e:
-                        if verbose:
-                            printc(GRAY, f"    (Could not get members for graph {graph['Arn']}: {str(e)})")
-                        graph_details.append({
-                            'graph_arn': graph['Arn'],
-                            'created_time': graph.get('CreatedTime', 'Unknown'),
-                            'member_count': 0
-                        })
-                
-                if graph_details:
-                    anomalous_regions.append({
-                        'region': region,
-                        'graph_count': len(graph_details),
-                        'graph_details': graph_details,
-                        'account_details': account_details
-                    })
-                    
-                    if verbose:
-                        printc(YELLOW, f"    ⚠️  Anomalous Detective in {region}: {len(graph_details)} graph(s)")
-                        for detail in graph_details:
-                            printc(YELLOW, f"       Graph {detail['graph_arn'].split('/')[-1]}: {detail['member_count']} members")
-                            
-            except ClientError as e:
-                # Don't show common "service not available" errors
-                if 'Could not connect to the endpoint URL' not in str(e) and 'UnsupportedOperation' not in str(e):
-                    if verbose:
-                        printc(GRAY, f"    (Skipping {region}: {str(e)})")
-                continue
-            except Exception as e:
-                # Don't show common connectivity errors
-                if 'Could not connect to the endpoint URL' not in str(e):
-                    if verbose:
-                        printc(GRAY, f"    (Error checking {region}: {str(e)})")
-                continue
-        
-        return anomalous_regions
-        
-    except Exception as e:
-        if verbose:
-            printc(GRAY, f"    ⚠️  Anomaly check failed: {str(e)}")
-        return []

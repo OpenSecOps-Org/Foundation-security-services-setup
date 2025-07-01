@@ -140,7 +140,7 @@ class TestGuardDutyUserFeedback:
         # Arrange - Mock GuardDuty needing changes to trigger dry-run output
         mock_check_guardduty.return_value = {
             'region': 'us-east-1',
-            'guardduty_enabled': False,
+            'service_enabled': False,
             'delegation_status': 'unknown',
             'member_count': 0,
             'organization_auto_enable': False,
@@ -148,7 +148,7 @@ class TestGuardDutyUserFeedback:
             'issues': ['GuardDuty is not enabled in this region'],
             'actions': ['Enable GuardDuty and create detector'],
             'errors': [],
-            'guardduty_details': []
+            'service_details': []
         }
         params = create_test_params(regions=['us-east-1', 'us-west-2'])
         
@@ -397,11 +397,11 @@ class TestGuardDutyConfigurationScenarios:
         )
         
         # Assert
-        assert result['guardduty_enabled'] is False
+        assert result['service_enabled'] is False
         assert result['needs_changes'] is True
         assert "GuardDuty is not enabled in this region" in result['issues']
         assert "Enable GuardDuty and create detector" in result['actions']
-        assert "❌ GuardDuty not enabled - no detectors found" in result['guardduty_details']
+        assert "❌ GuardDuty not enabled - no detectors found" in result['service_details']
     
     @patch('modules.guardduty.get_client')
     def test_scenario_2_configuration_but_no_delegation(self, mock_get_client):
@@ -434,7 +434,7 @@ class TestGuardDutyConfigurationScenarios:
         )
         
         # Assert
-        assert result['guardduty_enabled'] is True
+        assert result['service_enabled'] is True
         assert result['delegation_status'] == 'not_delegated'
         assert result['needs_changes'] is True
         assert "GuardDuty enabled but not delegated to Security account" in result['issues']
@@ -472,7 +472,7 @@ class TestGuardDutyConfigurationScenarios:
         )
         
         # Assert - With standardized delegation utility, no delegation scenarios return 'not_delegated'
-        assert result['guardduty_enabled'] is True
+        assert result['service_enabled'] is True
         assert result['delegation_status'] == 'not_delegated'
         assert result['needs_changes'] is True
         assert "GuardDuty enabled but not delegated to Security account" in result['issues']
@@ -510,13 +510,13 @@ class TestGuardDutyConfigurationScenarios:
         )
         
         # Assert - With standardized delegation utility, returns 'not_delegated' by default
-        assert result['guardduty_enabled'] is True
+        assert result['service_enabled'] is True
         assert result['delegation_status'] == 'not_delegated'
         assert result['needs_changes'] is True
         # Still check for frequency issues if they exist in the test data
         assert "GuardDuty enabled but not delegated to Security account" in result['issues']
         # Check that suboptimal frequency is detected in details
-        details_str = '\n'.join(result['guardduty_details'])
+        details_str = '\n'.join(result['service_details'])
         assert "⚠️  Finding Frequency: SIX_HOURS (suboptimal)" in details_str
     
     @patch('modules.guardduty.get_client')
@@ -581,14 +581,14 @@ class TestGuardDutyConfigurationScenarios:
         )
         
         # Assert - With proper delegation mocking, this should be optimal
-        assert result['guardduty_enabled'] is True
+        assert result['service_enabled'] is True
         assert result['delegation_status'] == 'delegated'
         assert result['needs_changes'] is False, "Optimal configuration should need no changes"
         assert result['issues'] == [], "Optimal configuration should have no issues"
         assert result['actions'] == [], "Optimal configuration should need no actions"
         
         # Check that optimal settings are properly detected
-        details_str = '\n'.join(result['guardduty_details'])
+        details_str = '\n'.join(result['service_details'])
         assert "✅ Finding Frequency: FIFTEEN_MINUTES (optimal)" in details_str
         assert "✅ Delegated to Security account: 234567890123" in details_str
         assert "✅ Organization Auto-Enable: True" in details_str
@@ -621,7 +621,7 @@ class TestGuardDutyAnomalousRegionDetection:
     """
     SPECIFICATION: GuardDuty anomalous region detection
     
-    The check_anomalous_guardduty_regions function should:
+    The AnomalousRegionChecker should:
     1. Detect GuardDuty detectors in regions outside the expected list
     2. Return list of anomalous regions with detector details
     3. Handle API errors gracefully
@@ -629,30 +629,27 @@ class TestGuardDutyAnomalousRegionDetection:
     """
     
     @patch('modules.guardduty.printc')
-    @patch('modules.guardduty.check_anomalous_guardduty_regions')
+    @patch('modules.guardduty.AnomalousRegionChecker.check_service_anomalous_regions')
     def test_when_anomalous_detectors_found_then_show_cost_warnings(self, mock_anomaly_check, mock_print, mock_aws_services):
         """
         GIVEN: GuardDuty detectors exist in regions outside expected configuration
         WHEN: setup_guardduty detects anomalous regions
         THEN: Should warn about unexpected costs and configuration drift
         """
-        # Arrange - Mock anomalous regions found
-        mock_anomaly_check.return_value = [
-            {
-                'region': 'ap-southeast-1',
-                'detector_count': 1,
-                'detector_details': [
-                    {'detector_id': 'detector123', 'status': 'ENABLED', 'finding_frequency': 'FIFTEEN_MINUTES'}
-                ]
-            },
-            {
-                'region': 'eu-central-1', 
-                'detector_count': 1,
-                'detector_details': [
-                    {'detector_id': 'detector456', 'status': 'ENABLED', 'finding_frequency': 'SIX_HOURS'}
-                ]
-            }
+        # Arrange - Mock anomalous regions found using dataclass objects
+        from modules.utils import create_anomalous_status
+        
+        anomaly1 = create_anomalous_status('ap-southeast-1', 1)
+        anomaly1.resource_details = [
+            {'detector_id': 'detector123', 'status': 'ENABLED', 'finding_frequency': 'FIFTEEN_MINUTES'}
         ]
+        
+        anomaly2 = create_anomalous_status('eu-central-1', 1)
+        anomaly2.resource_details = [
+            {'detector_id': 'detector456', 'status': 'ENABLED', 'finding_frequency': 'SIX_HOURS'}
+        ]
+        
+        mock_anomaly_check.return_value = [anomaly1, anomaly2]
         
         params = create_test_params()
         
@@ -697,7 +694,7 @@ class TestGuardDutyDelegationReporting:
                 # Region 1: Properly delegated
                 return {
                     'region': 'us-east-1',
-                    'guardduty_enabled': True,
+                    'service_enabled': True,
                     'delegation_status': 'delegated',
                     'member_count': 5,
                     'organization_auto_enable': True,
@@ -705,13 +702,13 @@ class TestGuardDutyDelegationReporting:
                     'issues': [],
                     'actions': [],
                     'errors': [],
-                    'guardduty_details': ['✅ Delegated Admin: Security-Adm']
+                    'service_details': ['✅ Delegated Admin: Security-Adm']
                 }
             elif region == 'us-west-2':
                 # Region 2: Delegation check failed (API error) - FIXED
                 return {
                     'region': 'us-west-2',
-                    'guardduty_enabled': True,
+                    'service_enabled': True,
                     'delegation_status': 'unknown',
                     'member_count': 0,
                     'organization_auto_enable': False,
@@ -719,7 +716,7 @@ class TestGuardDutyDelegationReporting:
                     'issues': ['Unable to verify delegation status'],  # FIXED: Now contains delegation check failure
                     'actions': ['Check IAM permissions for Organizations API'],
                     'errors': ['Check delegated administrators failed: AccessDenied'],
-                    'guardduty_details': ['❌ Delegation check failed: AccessDenied']
+                    'service_details': ['❌ Delegation check failed: AccessDenied']
                 }
         
         mock_check_guardduty.side_effect = mock_region_check
@@ -780,7 +777,7 @@ class TestGuardDutyDelegationReporting:
         )
         
         # Assert - With standardized delegation utility mocking
-        assert result['guardduty_enabled'] is True
+        assert result['service_enabled'] is True
         assert result['delegation_status'] == 'check_failed'
         assert result['needs_changes'] is True, "Should flag delegation check failure as needing attention"
         # The specific error content may vary with the mocking system
@@ -802,7 +799,7 @@ class TestGuardDutyDelegationReporting:
                 # Region 1: Properly delegated
                 return {
                     'region': 'us-east-1',
-                    'guardduty_enabled': True,
+                    'service_enabled': True,
                     'delegation_status': 'delegated',
                     'member_count': 5,
                     'organization_auto_enable': True,
@@ -810,13 +807,13 @@ class TestGuardDutyDelegationReporting:
                     'issues': [],
                     'actions': [],
                     'errors': [],
-                    'guardduty_details': ['✅ Delegated Admin: Security-Adm']
+                    'service_details': ['✅ Delegated Admin: Security-Adm']
                 }
             elif region == 'us-west-2':
                 # Region 2: No delegation
                 return {
                     'region': 'us-west-2',
-                    'guardduty_enabled': True,
+                    'service_enabled': True,
                     'delegation_status': 'not_delegated',
                     'member_count': 0,
                     'organization_auto_enable': False,
@@ -824,7 +821,7 @@ class TestGuardDutyDelegationReporting:
                     'issues': ['GuardDuty enabled but not delegated to Security account'],
                     'actions': ['Delegate GuardDuty administration to Security account'],
                     'errors': [],
-                    'guardduty_details': ['❌ No delegation found - should delegate to Security account']
+                    'service_details': ['❌ No delegation found - should delegate to Security account']
                 }
         
         mock_check_guardduty.side_effect = mock_region_check
@@ -862,7 +859,7 @@ class TestGuardDutyDelegationReporting:
                 # Region 1: API permission error
                 return {
                     'region': 'us-east-1',
-                    'guardduty_enabled': True,
+                    'service_enabled': True,
                     'delegation_status': 'unknown',
                     'member_count': 0,
                     'organization_auto_enable': False,
@@ -870,13 +867,13 @@ class TestGuardDutyDelegationReporting:
                     'issues': ['Unable to verify delegation status'],  # FIXED: Should have issue
                     'actions': ['Check IAM permissions for Organizations API'],
                     'errors': ['Check delegated administrators failed: AccessDenied'],
-                    'guardduty_details': ['❌ Delegation check failed: AccessDenied']
+                    'service_details': ['❌ Delegation check failed: AccessDenied']
                 }
             elif region == 'us-west-2':
                 # Region 2: Service not available error
                 return {
                     'region': 'us-west-2',
-                    'guardduty_enabled': False,
+                    'service_enabled': False,
                     'delegation_status': 'unknown',
                     'member_count': 0,
                     'organization_auto_enable': False,
@@ -884,7 +881,7 @@ class TestGuardDutyDelegationReporting:
                     'issues': ['GuardDuty service check failed'],
                     'actions': ['Verify GuardDuty is available in this region'],
                     'errors': ['List detectors failed: ServiceUnavailable'],
-                    'guardduty_details': ['❌ Service check failed']
+                    'service_details': ['❌ Service check failed']
                 }
         
         mock_check_guardduty.side_effect = mock_region_check
@@ -982,12 +979,12 @@ class TestGuardDutyAdvancedDataSources:
         )
         
         # Assert - Should show all advanced features as enabled
-        assert result['guardduty_enabled'] is True
+        assert result['service_enabled'] is True
         assert result['delegation_status'] == 'delegated'
         assert result['needs_changes'] is False, "All features enabled should need no changes"
         
         # Check that ALL advanced data sources are reported
-        details_str = '\n'.join(result['guardduty_details'])
+        details_str = '\n'.join(result['service_details'])
         assert "S3 Data Events: enabled" in details_str
         assert "Kubernetes Audit Logs: enabled" in details_str
         assert "Malware Protection: enabled" in details_str
@@ -1058,7 +1055,7 @@ class TestGuardDutyAdvancedDataSources:
         )
         
         # Assert - With updated implementation, disabled features are reported but don't require changes
-        assert result['guardduty_enabled'] is True
+        assert result['service_enabled'] is True
         assert result['delegation_status'] == 'delegated'
         assert result['needs_changes'] is False, "Updated implementation reports status without requiring changes for disabled features"
         
@@ -1069,7 +1066,7 @@ class TestGuardDutyAdvancedDataSources:
         assert result['issues'] == [], "Disabled features should not be reported as issues"
         
         # Check that advanced data sources are reported in details
-        details_str = '\n'.join(result['guardduty_details'])
+        details_str = '\n'.join(result['service_details'])
         assert "Kubernetes Audit Logs: disabled" in details_str
         assert "RDS Protection: disabled" in details_str
         assert "Lambda Network Activity: disabled" in details_str
@@ -1138,12 +1135,12 @@ class TestGuardDutyAdvancedDataSources:
         )
         
         # Assert - Should show exact status of each feature
-        assert result['guardduty_enabled'] is True
+        assert result['service_enabled'] is True
         assert result['delegation_status'] == 'delegated'
         assert result['needs_changes'] is False, "Updated implementation reports status without requiring changes for disabled features"
         
         # Check exact status reporting for ALL features
-        details_str = '\n'.join(result['guardduty_details'])
+        details_str = '\n'.join(result['service_details'])
         assert "S3 Data Events: enabled" in details_str
         assert "Kubernetes Audit Logs: enabled" in details_str
         assert "Malware Protection: disabled" in details_str
@@ -1185,10 +1182,10 @@ class TestGuardDutyAdvancedDataSources:
         )
         
         # Assert - Should handle missing data source config gracefully
-        assert result['guardduty_enabled'] is True
+        assert result['service_enabled'] is True
         assert result['delegation_status'] == 'not_delegated'
         
         # Check that advanced data sources are not listed when config unavailable
-        details_str = '\n'.join(result['guardduty_details'])
+        details_str = '\n'.join(result['service_details'])
         # Should show that delegation is needed to get data source status
         assert "delegation" in details_str.lower() or "Security account" in details_str

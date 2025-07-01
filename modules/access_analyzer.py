@@ -7,7 +7,7 @@ Automates the manual steps:
 3. In Security-Adm, set up organisation-wide analyzer for unused access (main region only)
 """
 
-from .utils import printc, get_client, DelegationChecker, YELLOW, LIGHT_BLUE, GREEN, RED, GRAY, END, BOLD
+from .utils import printc, get_client, DelegationChecker, AnomalousRegionChecker, create_service_status, YELLOW, LIGHT_BLUE, GREEN, RED, GRAY, END, BOLD
 
 def setup_access_analyzer(enabled, params, dry_run, verbose):
     """Setup IAM Access Analyzer delegation and organization-wide analyzers."""
@@ -52,7 +52,14 @@ def setup_access_analyzer(enabled, params, dry_run, verbose):
                 printc(GRAY, f"\n Checking all AWS regions for spurious Access Analyzer activation...")
             
             # Pass empty list as expected_regions so ALL regions are checked
-            anomalous_regions = detect_anomalous_access_analyzer_regions([], admin_account, security_account, cross_account_role, verbose)
+            anomalous_regions = AnomalousRegionChecker.check_service_anomalous_regions(
+                service_name='access_analyzer',
+                expected_regions=[],
+                admin_account=admin_account,
+                security_account=security_account,
+                cross_account_role=cross_account_role,
+                verbose=verbose
+            )
             
             if anomalous_regions:
                 printc(YELLOW, f"\n⚠️  SPURIOUS ACCESS ANALYZER ACTIVATION DETECTED:")
@@ -60,8 +67,10 @@ def setup_access_analyzer(enabled, params, dry_run, verbose):
                 printc(YELLOW, f"")
                 printc(YELLOW, f"Current spurious Access Analyzer resources:")
                 printc(YELLOW, f"  • Analyzers active across {len(anomalous_regions)} unexpected region(s)")
-                for anomalous_region in anomalous_regions:
-                    printc(YELLOW, f"     {anomalous_region}: Has analyzers (not in configured regions)")
+                for anomaly in anomalous_regions:
+                    region = anomaly.region
+                    analyzer_count = anomaly.resource_count
+                    printc(YELLOW, f"     {region}: {analyzer_count} analyzer(s) active (not in configured regions)")
                 printc(YELLOW, f"")
                 printc(YELLOW, f" SPURIOUS ACTIVATION RECOMMENDATIONS:")
                 printc(YELLOW, f"  • Review: These analyzers may be configuration drift or forgotten resources")
@@ -103,15 +112,24 @@ def setup_access_analyzer(enabled, params, dry_run, verbose):
                 printc(GREEN, f"✅ Access Analyzer properly delegated to Security account")
         
         # Step 2: Check for anomalous analyzers in unexpected regions
-        anomalous_regions = detect_anomalous_access_analyzer_regions(regions, admin_account, security_account, cross_account_role, verbose)
+        anomalous_regions = AnomalousRegionChecker.check_service_anomalous_regions(
+            service_name='access_analyzer',
+            expected_regions=regions,
+            admin_account=admin_account,
+            security_account=security_account,
+            cross_account_role=cross_account_role,
+            verbose=verbose
+        )
         
         any_changes_needed = False
         if anomalous_regions:
             any_changes_needed = True
             printc(RED, f"\n ANOMALOUS ANALYZERS DETECTED")
             printc(RED, f"Access Analyzer analyzers found in regions NOT in your specified regions list:")
-            for anomalous_region in anomalous_regions:
-                printc(RED, f"  • {anomalous_region}: Has analyzers but not in regions parameter")
+            for anomaly in anomalous_regions:
+                region = anomaly.region
+                analyzer_count = anomaly.resource_count
+                printc(RED, f"  • {region}: {analyzer_count} analyzer(s) but not in regions parameter")
                 printc(RED, f"    This may indicate accidental analyzer creation or configuration drift")
             printc(RED, f"⚠️  Consider reviewing these regions and removing unneeded analyzers")
         
@@ -153,8 +171,8 @@ def setup_access_analyzer(enabled, params, dry_run, verbose):
                 printc(LIGHT_BLUE, "\n Current IAM Access Analyzer Configuration:")
                 for region, status in analyzer_status.items():
                     printc(LIGHT_BLUE, f"\n Region: {region}")
-                    if status['has_analyzers']:
-                        for detail in status['analyzer_details']:
+                    if status['service_enabled']:
+                        for detail in status['service_details']:
                             printc(GRAY, f"  {detail}")
                     else:
                         printc(GRAY, "  Access Analyzer not enabled in this region")
@@ -285,6 +303,7 @@ def check_access_analyzer_delegation(admin_account, security_account, cross_acco
 def check_access_analyzer_in_region(region, admin_account, security_account, cross_account_role, is_main_region, delegation_status, verbose=False):
     """
     Check AWS IAM Access Analyzer analyzers in a specific region.
+    Returns standardized status dictionary with uniform field names.
     
     Note: IAM Access Analyzer delegation is organization-wide, not per-region.
     This function focuses on checking analyzer presence and configuration per region.
@@ -300,17 +319,20 @@ def check_access_analyzer_in_region(region, admin_account, security_account, cro
     import boto3
     from botocore.exceptions import ClientError
     
-    status = {
-        'region': region,
-        'has_analyzers': False,
-        'external_analyzer_count': 0,
-        'unused_analyzer_count': 0,
-        'needs_changes': False,
-        'issues': [],
-        'actions': [],
-        'errors': [],
-        'analyzer_details': []
-    }
+    # Create standardized status using new dataclass structure
+    status_obj = create_service_status('access_analyzer', region)
+    
+    # Convert to dict for backward compatibility during transition
+    status = status_obj.to_dict()
+    
+    # Set delegation status from parameter
+    status['delegation_status'] = delegation_status
+    
+    # Ensure all Access Analyzer-specific fields are present (from AccessAnalyzerRegionStatus)
+    if 'external_analyzer_count' not in status:
+        status['external_analyzer_count'] = 0
+    if 'unused_analyzer_count' not in status:
+        status['unused_analyzer_count'] = 0
     
     try:
         # Check for analyzers in this region (from admin account perspective first)
@@ -322,8 +344,8 @@ def check_access_analyzer_in_region(region, admin_account, security_account, cro
                 all_analyzers.extend(page.get('analyzers', []))
             
             if all_analyzers:
-                status['has_analyzers'] = True
-                status['analyzer_details'].append(f"✅ Found {len(all_analyzers)} analyzer(s) in {region}")
+                status['service_enabled'] = True
+                status['service_details'].append(f"✅ Found {len(all_analyzers)} analyzer(s) in {region}")
                 
                 # Analyze each analyzer
                 for analyzer in all_analyzers:
@@ -331,30 +353,30 @@ def check_access_analyzer_in_region(region, admin_account, security_account, cro
                     analyzer_type = analyzer.get('type')
                     analyzer_status = analyzer.get('status')
                     
-                    status['analyzer_details'].append(f"    Analyzer '{analyzer_name}':")
-                    status['analyzer_details'].append(f"      Type: {analyzer_type}")
-                    status['analyzer_details'].append(f"      Status: {analyzer_status}")
+                    status['service_details'].append(f"    Analyzer '{analyzer_name}':")
+                    status['service_details'].append(f"      Type: {analyzer_type}")
+                    status['service_details'].append(f"      Status: {analyzer_status}")
                     
                     # Classify analyzer types based on naming and configuration
                     if 'external' in analyzer_name.lower() or analyzer_type == 'ORGANIZATION':
                         status['external_analyzer_count'] += 1
-                        status['analyzer_details'].append(f"       External Access Analyzer")
+                        status['service_details'].append(f"       External Access Analyzer")
                     elif 'unused' in analyzer_name.lower():
                         status['unused_analyzer_count'] += 1
-                        status['analyzer_details'].append(f"      📊 Unused Access Analyzer")
+                        status['service_details'].append(f"      📊 Unused Access Analyzer")
                     else:
                         # Generic analyzer - assume external access for now
                         status['external_analyzer_count'] += 1
-                        status['analyzer_details'].append(f"       General Analyzer (assuming external access)")
+                        status['service_details'].append(f"       General Analyzer (assuming external access)")
             else:
                 # Only show this if delegation isn't going to provide better data
                 if delegation_status != 'delegated':
-                    status['analyzer_details'].append(f"❌ No analyzers found in {region}")
+                    status['service_details'].append(f"❌ No analyzers found in {region}")
                     
         except ClientError as e:
             error_msg = f"List analyzers failed: {str(e)}"
             status['errors'].append(error_msg)
-            status['analyzer_details'].append(f"❌ List analyzers failed: {str(e)}")
+            status['service_details'].append(f"❌ List analyzers failed: {str(e)}")
         
         # If delegated to security account, get comprehensive data from delegated admin perspective
         if (delegation_status == 'delegated' and 
@@ -376,32 +398,32 @@ def check_access_analyzer_in_region(region, admin_account, security_account, cro
                         all_delegated_analyzers.extend(page.get('analyzers', []))
                     
                     if all_delegated_analyzers:
-                        status['analyzer_details'].append(f"✅ Delegated Admin View: {len(all_delegated_analyzers)} analyzers")
+                        status['service_details'].append(f"✅ Delegated Admin View: {len(all_delegated_analyzers)} analyzers")
                         
                         # Reset counters for delegated admin perspective (more authoritative)
                         status['external_analyzer_count'] = 0
                         status['unused_analyzer_count'] = 0
-                        status['has_analyzers'] = True
+                        status['service_enabled'] = True
                         
                         for analyzer in all_delegated_analyzers:
                             analyzer_name = analyzer.get('name')
                             analyzer_type = analyzer.get('type')
                             analyzer_status = analyzer.get('status')
                             
-                            status['analyzer_details'].append(f"    Delegated Analyzer '{analyzer_name}':")
-                            status['analyzer_details'].append(f"      Type: {analyzer_type}")
-                            status['analyzer_details'].append(f"      Status: {analyzer_status}")
+                            status['service_details'].append(f"    Delegated Analyzer '{analyzer_name}':")
+                            status['service_details'].append(f"      Type: {analyzer_type}")
+                            status['service_details'].append(f"      Status: {analyzer_status}")
                             
                             # Classify analyzer types
                             if 'external' in analyzer_name.lower() or analyzer_type == 'ORGANIZATION':
                                 status['external_analyzer_count'] += 1
-                                status['analyzer_details'].append(f"       External Access Analyzer")
+                                status['service_details'].append(f"       External Access Analyzer")
                             elif 'unused' in analyzer_name.lower():
                                 status['unused_analyzer_count'] += 1
-                                status['analyzer_details'].append(f"      📊 Unused Access Analyzer")
+                                status['service_details'].append(f"      📊 Unused Access Analyzer")
                             else:
                                 status['external_analyzer_count'] += 1
-                                status['analyzer_details'].append(f"       General Analyzer (assuming external access)")
+                                status['service_details'].append(f"       General Analyzer (assuming external access)")
                             
                             # Get findings count for this analyzer
                             try:
@@ -417,7 +439,7 @@ def check_access_analyzer_in_region(region, admin_account, security_account, cro
                                             findings_count += len(page.get('findings', []))
                                     except Exception:
                                         # Fallback: Skip findings count for unused access analyzers
-                                        status['analyzer_details'].append(f"       Findings: (Unused Access - count not available)")
+                                        status['service_details'].append(f"       Findings: (Unused Access - count not available)")
                                         continue
                                 else:
                                     # Use ListFindings for External Access analyzers
@@ -426,132 +448,57 @@ def check_access_analyzer_in_region(region, admin_account, security_account, cro
                                         findings_count += len(page.get('findings', []))
                                 
                                 if findings_count > 0:
-                                    status['analyzer_details'].append(f"       Active Findings: {findings_count}")
+                                    status['service_details'].append(f"       Active Findings: {findings_count}")
                                 else:
-                                    status['analyzer_details'].append(f"      ✅ No Active Findings")
+                                    status['service_details'].append(f"      ✅ No Active Findings")
                                     
                             except ClientError as e:
-                                status['analyzer_details'].append(f"      ⚠️  Findings check failed: {str(e)}")
+                                status['service_details'].append(f"      ⚠️  Findings check failed: {str(e)}")
                         
                     else:
-                        status['analyzer_details'].append("⚠️  No analyzers found in delegated admin account")
+                        status['service_details'].append("⚠️  No analyzers found in delegated admin account")
                         
                 except ClientError as e:
                     error_msg = f"Delegated admin analyzer check failed: {str(e)}"
                     status['errors'].append(error_msg)
-                    status['analyzer_details'].append(f"❌ Delegated admin check failed: {str(e)}")
+                    status['service_details'].append(f"❌ Delegated admin check failed: {str(e)}")
         
         # Determine if changes are needed based on analyzer requirements
+        # All regions should have external access analyzer
+        if status['external_analyzer_count'] == 0:
+            status['needs_changes'] = True
+            status['issues'].append("Missing external access analyzer for organization-wide monitoring")
+            status['actions'].append("Create organization-wide analyzer for external access")
+        
+        # Main region should also have unused access analyzer
+        if is_main_region and status['unused_analyzer_count'] == 0:
+            status['needs_changes'] = True
+            status['issues'].append("Main region missing unused access analyzer")
+            status['actions'].append("Create organization-wide analyzer for unused access (main region only)")
+        
+        # Check delegation-specific issues
         if delegation_status == 'delegated':
-            # All regions should have external access analyzer
-            if status['external_analyzer_count'] == 0:
-                status['needs_changes'] = True
-                status['issues'].append("Missing external access analyzer for organization-wide monitoring")
-                status['actions'].append("Create organization-wide analyzer for external access")
-            
-            # Main region should also have unused access analyzer
-            if is_main_region and status['unused_analyzer_count'] == 0:
-                status['needs_changes'] = True
-                status['issues'].append("Main region missing unused access analyzer")
-                status['actions'].append("Create organization-wide analyzer for unused access (main region only)")
-            
-            # Report coverage summary
+            # Report coverage summary when properly delegated
             if status['external_analyzer_count'] > 0:
-                status['analyzer_details'].append(f"   ✅ External Access Coverage: {status['external_analyzer_count']} analyzer(s)")
+                status['service_details'].append(f"   ✅ External Access Coverage: {status['external_analyzer_count']} analyzer(s)")
             if status['unused_analyzer_count'] > 0:
-                status['analyzer_details'].append(f"   ✅ Unused Access Coverage: {status['unused_analyzer_count']} analyzer(s)")
+                status['service_details'].append(f"   ✅ Unused Access Coverage: {status['unused_analyzer_count']} analyzer(s)")
                 
         elif delegation_status == 'not_delegated':
-            if status['has_analyzers']:
+            if status['service_enabled']:
                 status['needs_changes'] = True
                 status['issues'].append("Analyzers exist but Access Analyzer not delegated to Security account")
+                status['actions'].append("Delegate Access Analyzer administration to Security account")
+            else:
+                # No analyzers but also not delegated - delegation should happen first
+                status['needs_changes'] = True
+                status['issues'].append("Access Analyzer not delegated to Security account")
                 status['actions'].append("Delegate Access Analyzer administration to Security account")
                 
     except Exception as e:
         error_msg = f"General error checking region {region}: {str(e)}"
         status['errors'].append(error_msg)
-        status['analyzer_details'].append(f"❌ General error: {str(e)}")
+        status['service_details'].append(f"❌ General error: {str(e)}")
     
     return status
 
-def detect_anomalous_access_analyzer_regions(expected_regions, admin_account, security_account, cross_account_role=None, verbose=False):
-    """
-    Detect regions where Access Analyzer analyzers exist but are not in the expected regions list.
-    
-    This is a safety feature to identify configuration drift or accidental analyzer creation.
-    Returns list of regions that have analyzers but aren't in the expected regions list.
-    """
-    import boto3
-    from botocore.exceptions import ClientError
-    
-    anomalous_regions = []
-    
-    try:
-        # Get list of all AWS regions
-        ec2_client = get_client('ec2', admin_account, expected_regions[0], 'AWSControlTowerExecution')  # Use first region as base
-        all_regions_response = ec2_client.describe_regions()
-        all_regions = [region['RegionName'] for region in all_regions_response['Regions']]
-        
-        if verbose:
-            printc(GRAY, f" Scanning {len(all_regions)} AWS regions for analyzers in unexpected regions...")
-        
-        # Check each region that's NOT in our expected list
-        regions_to_check = [region for region in all_regions if region not in expected_regions]
-        
-        for region in regions_to_check:
-            try:
-                # Check if there are any analyzers in this unexpected region
-                analyzer_client = get_client('accessanalyzer', admin_account, region, 'AWSControlTowerExecution')
-                all_analyzers = []
-                try:
-                    paginator = analyzer_client.get_paginator('list_analyzers')
-                    for page in paginator.paginate():
-                        all_analyzers.extend(page.get('analyzers', []))
-                except ClientError as e:
-                    # Access Analyzer might not be available in all regions
-                    if ('UnsupportedOperation' not in str(e) and 'AccessDenied' not in str(e) 
-                        and 'Could not connect to the endpoint URL' not in str(e)):
-                        if verbose:
-                            printc(GRAY, f"  ⚠️  Could not check analyzers in {region}: {str(e)}")
-                    continue
-                
-                # If there are analyzers in this unexpected region, it's anomalous
-                if all_analyzers:
-                    # Collect account details for better security actionability
-                    account_details = []
-                    
-                    # Add admin account details (this account owns the analyzers)
-                    account_details.append({
-                        'account_id': admin_account,
-                        'account_status': 'ADMIN_ACCOUNT',
-                        'analyzer_status': 'ENABLED'
-                    })
-                    
-                    anomalous_regions.append({
-                        'region': region,
-                        'analyzer_count': len(all_analyzers),
-                        'analyzer_details': all_analyzers,
-                        'account_details': account_details
-                    })
-                    
-                    if verbose:
-                        analyzer_names = [analyzer.get('name') for analyzer in all_analyzers]
-                        printc(GRAY, f"   Found {len(all_analyzers)} analyzer(s) in unexpected region {region}")
-                        printc(GRAY, f"      Analyzers: {', '.join(analyzer_names)}")
-                    
-            except Exception as e:
-                # Don't show common connectivity errors
-                if 'Could not connect to the endpoint URL' not in str(e):
-                    if verbose:
-                        printc(GRAY, f"  ⚠️  Error checking region {region}: {str(e)}")
-                continue
-        
-        if verbose and not anomalous_regions:
-            printc(GRAY, f"  ✅ No analyzers found in unexpected regions")
-        elif verbose and anomalous_regions:
-            printc(GRAY, f"   Found analyzers in {len(anomalous_regions)} unexpected region(s)")
-        
-    except Exception as e:
-        printc(RED, f"  ❌ Error during anomalous region detection: {str(e)}")
-    
-    return anomalous_regions

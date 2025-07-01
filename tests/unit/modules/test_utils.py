@@ -263,7 +263,7 @@ class TestAnomalousRegionDetectionEnhancements:
         assert 'us-west-2' not in unexpected_regions
         assert len(unexpected_regions) == 3
     
-    @patch('modules.guardduty.get_client')
+    @patch('modules.utils.get_client')
     def test_anomalous_region_detection_includes_account_details(self, mock_get_client, mock_aws_services):
         """
         GIVEN: Anomalous service activations exist with account-level details
@@ -272,7 +272,7 @@ class TestAnomalousRegionDetectionEnhancements:
         
         This addresses the user's specific request for account-level visibility.
         """
-        from modules.guardduty import check_anomalous_guardduty_regions
+        from modules.utils import AnomalousRegionChecker
         
         # Setup mock clients
         mock_ec2_client = MagicMock()
@@ -319,7 +319,8 @@ class TestAnomalousRegionDetectionEnhancements:
         }
         
         # Act
-        result = check_anomalous_guardduty_regions(
+        result = AnomalousRegionChecker.check_service_anomalous_regions(
+            service_name='guardduty',
             expected_regions=['us-east-1'],  # ap-southeast-1 is unexpected
             admin_account='123456789012',
             security_account='234567890123',
@@ -331,12 +332,12 @@ class TestAnomalousRegionDetectionEnhancements:
         assert len(result) == 1
         anomaly = result[0]
         
-        assert anomaly['region'] == 'ap-southeast-1'
-        assert anomaly['detector_count'] == 1
-        assert 'account_details' in anomaly  # User's requested enhancement!
+        assert anomaly.region == 'ap-southeast-1'
+        assert anomaly.resource_count == 1
+        assert hasattr(anomaly, 'account_details')
         
         # Check account-level details
-        account_details = anomaly['account_details']
+        account_details = anomaly.account_details
         assert len(account_details) >= 2  # Admin account + member accounts
         
         # Should include admin account
@@ -354,7 +355,7 @@ class TestAnomalousRegionDetectionEnhancements:
             assert 'account_status' in account, "Should include account status"
             assert 'detector_status' in account, "Should include detector status"
     
-    @patch('modules.security_hub.get_client')
+    @patch('modules.utils.get_client')
     def test_security_hub_anomalous_region_detection_includes_account_details(self, mock_get_client, mock_aws_services):
         """
         GIVEN: Security Hub is active in unexpected regions with member accounts
@@ -363,7 +364,7 @@ class TestAnomalousRegionDetectionEnhancements:
         
         TDD Red phase - this test should initially fail until we enhance Security Hub.
         """
-        from modules.security_hub import check_anomalous_securityhub_regions
+        from modules.utils import AnomalousRegionChecker
         
         # Setup mock clients
         mock_ec2_client = MagicMock()
@@ -412,7 +413,8 @@ class TestAnomalousRegionDetectionEnhancements:
         }
         
         # Act
-        result = check_anomalous_securityhub_regions(
+        result = AnomalousRegionChecker.check_service_anomalous_regions(
+            service_name='security_hub',
             expected_regions=['us-east-1'],  # eu-west-3 is unexpected
             admin_account='123456789012',
             security_account='234567890123',
@@ -424,12 +426,12 @@ class TestAnomalousRegionDetectionEnhancements:
         assert len(result) == 1
         anomaly = result[0]
         
-        assert anomaly['region'] == 'eu-west-3'
-        assert anomaly['hub_active'] is True
-        assert 'account_details' in anomaly  # User's requested enhancement!
+        assert anomaly.region == 'eu-west-3'
+        assert anomaly.resource_count == 1
+        assert hasattr(anomaly, 'account_details')
         
         # Check account-level details
-        account_details = anomaly['account_details']
+        account_details = anomaly.account_details
         assert len(account_details) >= 2  # Admin account + member accounts
         
         # Should include admin account details
@@ -448,8 +450,8 @@ class TestAnomalousRegionDetectionEnhancements:
             assert 'account_status' in account or 'member_status' in account, "Should include account/member status"
             assert 'hub_status' in account, "Should include Security Hub status"
     
-    @patch('modules.detective.get_client')
-    def test_detective_anomalous_region_detection_includes_account_details(self, mock_get_client):
+    @patch('modules.utils.get_client')
+    def test_detective_anomalous_region_detection_includes_account_details(self, mock_get_client, mock_aws_services):
         """
         GIVEN: Detective is active in unexpected regions with investigation graphs and member accounts
         WHEN: anomalous region detection runs for Detective
@@ -457,7 +459,7 @@ class TestAnomalousRegionDetectionEnhancements:
         
         TDD Red phase - this test should initially fail until we enhance Detective.
         """
-        from modules.detective import check_anomalous_detective_regions
+        from modules.utils import AnomalousRegionChecker
         
         # Setup mock clients
         mock_ec2_client = MagicMock()
@@ -511,7 +513,8 @@ class TestAnomalousRegionDetectionEnhancements:
         ]
         
         # Act
-        result = check_anomalous_detective_regions(
+        result = AnomalousRegionChecker.check_service_anomalous_regions(
+            service_name='detective',
             expected_regions=['us-east-1'],  # ca-central-1 is unexpected
             admin_account='123456789012',
             security_account='234567890123',
@@ -523,12 +526,12 @@ class TestAnomalousRegionDetectionEnhancements:
         assert len(result) == 1
         anomaly = result[0]
         
-        assert anomaly['region'] == 'ca-central-1'
-        assert anomaly['graph_count'] == 1
-        assert 'account_details' in anomaly  # User's requested enhancement!
+        assert anomaly.region == 'ca-central-1'
+        assert anomaly.resource_count == 1
+        assert hasattr(anomaly, 'account_details')
         
         # Check account-level details
-        account_details = anomaly['account_details']
+        account_details = anomaly.account_details
         assert len(account_details) >= 2  # Admin account + member accounts
         
         # Should include admin account details
@@ -545,10 +548,10 @@ class TestAnomalousRegionDetectionEnhancements:
             assert 'account_id' in account, "Should include account ID for action"
             # Admin accounts have 'account_status', member accounts have 'member_status'
             assert 'account_status' in account or 'member_status' in account, "Should include account/member status"
-            assert 'graph_status' in account or 'detective_status' in account, "Should include Detective status"
+            assert 'service_status' in account or 'member_status' in account, "Should include service status"
     
-    @patch('modules.access_analyzer.get_client')
-    def test_access_analyzer_anomalous_region_detection_includes_account_details(self, mock_get_client):
+    @patch('modules.utils.get_client')
+    def test_access_analyzer_anomalous_region_detection_includes_account_details(self, mock_get_client, mock_aws_services):
         """
         GIVEN: Access Analyzer is active in unexpected regions with analyzers
         WHEN: anomalous region detection runs for Access Analyzer
@@ -556,7 +559,7 @@ class TestAnomalousRegionDetectionEnhancements:
         
         TDD Red phase - this test should initially fail until we enhance Access Analyzer.
         """
-        from modules.access_analyzer import detect_anomalous_access_analyzer_regions
+        from modules.utils import AnomalousRegionChecker
         
         # Setup mock clients
         mock_ec2_client = MagicMock()
@@ -604,7 +607,8 @@ class TestAnomalousRegionDetectionEnhancements:
         ]
         
         # Act
-        result = detect_anomalous_access_analyzer_regions(
+        result = AnomalousRegionChecker.check_service_anomalous_regions(
+            service_name='access_analyzer',
             expected_regions=['us-east-1'],  # ap-southeast-2 is unexpected
             admin_account='123456789012',
             security_account='234567890123',
@@ -616,12 +620,12 @@ class TestAnomalousRegionDetectionEnhancements:
         assert len(result) == 1
         anomaly = result[0]
         
-        assert anomaly['region'] == 'ap-southeast-2'
-        assert anomaly['analyzer_count'] == 2
-        assert 'account_details' in anomaly  # User's requested enhancement!
+        assert anomaly.region == 'ap-southeast-2'
+        assert anomaly.resource_count == 2
+        assert hasattr(anomaly, 'account_details')
         
         # Check account-level details
-        account_details = anomaly['account_details']
+        account_details = anomaly.account_details
         assert len(account_details) >= 1  # At least admin account
         
         # Should include admin account details
@@ -634,6 +638,368 @@ class TestAnomalousRegionDetectionEnhancements:
             assert 'account_id' in account, "Should include account ID for action"
             assert 'account_status' in account, "Should include account status"
             assert 'analyzer_status' in account, "Should include Access Analyzer status"
+
+
+class TestAnomalousRegionChecker:
+    """Test the shared AnomalousRegionChecker class following DelegationChecker pattern."""
+    
+    @patch('modules.utils.get_client')
+    def test_when_anomalous_region_checker_called_then_follows_delegation_checker_pattern(self, mock_get_client):
+        """
+        GIVEN: AnomalousRegionChecker should follow DelegationChecker pattern exactly
+        WHEN: check_service_anomalous_regions is called
+        THEN: Should have same interface pattern as DelegationChecker.check_service_delegation
+        """
+        from modules.utils import AnomalousRegionChecker
+        
+        # Act - Check that method exists with expected signature
+        method = getattr(AnomalousRegionChecker, 'check_service_anomalous_regions', None)
+        
+        # Assert
+        assert method is not None, "Should provide check_service_anomalous_regions method"
+        assert callable(method), "Should be a callable method"
+        
+        # Verify it's a static method like DelegationChecker
+        import inspect
+        assert inspect.isfunction(method), "Should be a static method like DelegationChecker"
+    
+    @patch('modules.utils.get_client')
+    def test_when_guardduty_anomalous_regions_checked_then_standardized_structure_returned(self, mock_get_client):
+        """
+        GIVEN: GuardDuty resources exist in unexpected regions
+        WHEN: check_service_anomalous_regions is called for guardduty
+        THEN: Should return standardized AnomalousRegionStatus structure
+        """
+        from modules.utils import AnomalousRegionChecker
+        
+        # Setup mocks
+        mock_ec2_client = MagicMock()
+        mock_guardduty_client = MagicMock()
+        
+        def mock_client_factory(service, account_id, region, role_name):
+            if service == 'ec2':
+                return mock_ec2_client
+            elif service == 'guardduty':
+                return mock_guardduty_client
+            return None
+        
+        mock_get_client.side_effect = mock_client_factory
+        
+        # Mock EC2 regions
+        mock_ec2_client.describe_regions.return_value = {
+            'Regions': [
+                {'RegionName': 'us-east-1'},
+                {'RegionName': 'eu-west-1'}  # Unexpected region
+            ]
+        }
+        
+        # Mock GuardDuty detector in unexpected region
+        mock_guardduty_client.list_detectors.return_value = {
+            'DetectorIds': ['detector123']
+        }
+        mock_guardduty_client.get_detector.return_value = {
+            'Status': 'ENABLED',
+            'FindingPublishingFrequency': 'FIFTEEN_MINUTES'
+        }
+        
+        # Act
+        result = AnomalousRegionChecker.check_service_anomalous_regions(
+            service_name='guardduty',
+            expected_regions=['us-east-1'],
+            admin_account='123456789012',
+            security_account='234567890123',
+            cross_account_role='AWSControlTowerExecution',
+            verbose=False
+        )
+        
+        # Assert
+        assert len(result) == 1
+        anomaly = result[0]
+        
+        # Should have standardized structure
+        assert hasattr(anomaly, 'region')
+        assert hasattr(anomaly, 'resource_count')
+        assert hasattr(anomaly, 'resource_details')
+        assert hasattr(anomaly, 'account_details')
+        
+        assert anomaly.region == 'eu-west-1'
+        assert anomaly.resource_count == 1
+    
+    @patch('modules.utils.get_client')
+    def test_when_service_not_found_in_unexpected_regions_then_empty_list_returned(self, mock_get_client):
+        """
+        GIVEN: No resources exist in unexpected regions
+        WHEN: check_service_anomalous_regions is called
+        THEN: Should return empty list
+        """
+        from modules.utils import AnomalousRegionChecker
+        
+        # Setup mocks
+        mock_ec2_client = MagicMock()
+        mock_guardduty_client = MagicMock()
+        
+        def mock_client_factory(service, account_id, region, role_name):
+            if service == 'ec2':
+                return mock_ec2_client
+            elif service == 'guardduty':
+                return mock_guardduty_client
+            return None
+        
+        mock_get_client.side_effect = mock_client_factory
+        
+        # Mock EC2 regions
+        mock_ec2_client.describe_regions.return_value = {
+            'Regions': [
+                {'RegionName': 'us-east-1'},
+                {'RegionName': 'eu-west-1'}
+            ]
+        }
+        
+        # Mock GuardDuty with no detectors in unexpected region
+        mock_guardduty_client.list_detectors.return_value = {
+            'DetectorIds': []  # No detectors
+        }
+        
+        # Act
+        result = AnomalousRegionChecker.check_service_anomalous_regions(
+            service_name='guardduty',
+            expected_regions=['us-east-1'],
+            admin_account='123456789012',
+            security_account='234567890123',
+            verbose=False
+        )
+        
+        # Assert
+        assert len(result) == 0
+    
+    @patch('modules.utils.get_client')
+    def test_when_security_hub_anomalous_regions_checked_then_handles_exception_pattern(self, mock_get_client):
+        """
+        GIVEN: Security Hub uses exception-when-none pattern
+        WHEN: check_service_anomalous_regions is called for security_hub
+        THEN: Should handle Security Hub's unique API pattern correctly
+        """
+        from modules.utils import AnomalousRegionChecker
+        from botocore.exceptions import ClientError
+        
+        # Setup mocks
+        mock_ec2_client = MagicMock()
+        mock_securityhub_client = MagicMock()
+        
+        def mock_client_factory(service, account_id, region, role_name):
+            if service == 'ec2':
+                return mock_ec2_client
+            elif service == 'securityhub':
+                return mock_securityhub_client
+            return None
+        
+        mock_get_client.side_effect = mock_client_factory
+        
+        # Mock EC2 regions
+        mock_ec2_client.describe_regions.return_value = {
+            'Regions': [
+                {'RegionName': 'us-east-1'},
+                {'RegionName': 'ap-southeast-1'}
+            ]
+        }
+        
+        # Mock Security Hub with hub enabled in unexpected region
+        mock_securityhub_client.describe_hub.return_value = {
+            'HubArn': 'arn:aws:securityhub:ap-southeast-1:123456789012:hub/default',
+            'SubscribedAt': '2024-01-15T10:30:00.000Z',
+            'AutoEnableControls': True
+        }
+        
+        # Act
+        result = AnomalousRegionChecker.check_service_anomalous_regions(
+            service_name='security_hub',
+            expected_regions=['us-east-1'],
+            admin_account='123456789012',
+            security_account='234567890123',
+            verbose=False
+        )
+        
+        # Assert
+        assert len(result) == 1
+        anomaly = result[0]
+        assert anomaly.region == 'ap-southeast-1'
+        assert anomaly.resource_count == 1
+        assert 'hub_arn' in anomaly.resource_details[0]
+    
+    @patch('modules.utils.get_client')
+    def test_when_access_analyzer_anomalous_regions_checked_then_handles_paginator_pattern(self, mock_get_client):
+        """
+        GIVEN: Access Analyzer uses paginator pattern
+        WHEN: check_service_anomalous_regions is called for access_analyzer
+        THEN: Should handle Access Analyzer's paginator API pattern correctly
+        """
+        from modules.utils import AnomalousRegionChecker
+        
+        # Setup mocks
+        mock_ec2_client = MagicMock()
+        mock_analyzer_client = MagicMock()
+        mock_paginator = MagicMock()
+        
+        def mock_client_factory(service, account_id, region, role_name):
+            if service == 'ec2':
+                return mock_ec2_client
+            elif service == 'accessanalyzer':
+                return mock_analyzer_client
+            return None
+        
+        mock_get_client.side_effect = mock_client_factory
+        
+        # Mock EC2 regions
+        mock_ec2_client.describe_regions.return_value = {
+            'Regions': [
+                {'RegionName': 'us-east-1'},
+                {'RegionName': 'ca-central-1'}
+            ]
+        }
+        
+        # Mock Access Analyzer paginator
+        mock_analyzer_client.get_paginator.return_value = mock_paginator
+        mock_paginator.paginate.return_value = [
+            {
+                'analyzers': [
+                    {
+                        'name': 'external-analyzer',
+                        'type': 'ORGANIZATION',
+                        'status': 'ACTIVE'
+                    }
+                ]
+            }
+        ]
+        
+        # Act
+        result = AnomalousRegionChecker.check_service_anomalous_regions(
+            service_name='access_analyzer',
+            expected_regions=['us-east-1'],
+            admin_account='123456789012',
+            security_account='234567890123',
+            verbose=False
+        )
+        
+        # Assert
+        assert len(result) == 1
+        anomaly = result[0]
+        assert anomaly.region == 'ca-central-1'
+        assert anomaly.resource_count == 1
+        assert 'analyzer_name' in anomaly.resource_details[0]
+    
+    @patch('modules.utils.get_client')
+    def test_when_inspector_anomalous_regions_checked_then_handles_embedded_accounts_pattern(self, mock_get_client):
+        """
+        GIVEN: Inspector uses embedded accounts pattern
+        WHEN: check_service_anomalous_regions is called for inspector
+        THEN: Should handle Inspector's embedded account details correctly
+        """
+        from modules.utils import AnomalousRegionChecker
+        
+        # Setup mocks
+        mock_ec2_client = MagicMock()
+        mock_inspector_client = MagicMock()
+        
+        def mock_client_factory(service, account_id, region, role_name):
+            if service == 'ec2':
+                return mock_ec2_client
+            elif service == 'inspector2':
+                return mock_inspector_client
+            return None
+        
+        mock_get_client.side_effect = mock_client_factory
+        
+        # Mock EC2 regions
+        mock_ec2_client.describe_regions.return_value = {
+            'Regions': [
+                {'RegionName': 'us-east-1'},
+                {'RegionName': 'us-west-1'}
+            ]
+        }
+        
+        # Mock Inspector with enabled resources
+        mock_inspector_client.batch_get_account_status.return_value = {
+            'accounts': [
+                {
+                    'accountId': '123456789012',
+                    'resourceState': {
+                        'ECR': {'status': 'ENABLED'},
+                        'EC2': {'status': 'ENABLED'}
+                    }
+                }
+            ]
+        }
+        
+        # Act
+        result = AnomalousRegionChecker.check_service_anomalous_regions(
+            service_name='inspector',
+            expected_regions=['us-east-1'],
+            admin_account='123456789012',
+            verbose=False
+        )
+        
+        # Assert
+        assert len(result) == 1
+        anomaly = result[0]
+        assert anomaly.region == 'us-west-1'
+        assert anomaly.resource_count == 2  # ECR + EC2
+        assert len(anomaly.account_details) == 1
+        assert anomaly.account_details[0]['account_id'] == '123456789012'
+    
+    def test_when_unknown_service_name_provided_then_raises_value_error(self):
+        """
+        GIVEN: Unknown service name is provided
+        WHEN: check_service_anomalous_regions is called
+        THEN: Should raise ValueError for unknown service
+        """
+        from modules.utils import AnomalousRegionChecker
+        
+        # Act & Assert
+        with pytest.raises(ValueError, match="Unknown service"):
+            AnomalousRegionChecker.check_service_anomalous_regions(
+                service_name='unknown_service',
+                expected_regions=['us-east-1'],
+                admin_account='123456789012'
+            )
+    
+    @patch('modules.utils.get_client')
+    def test_when_client_creation_fails_then_gracefully_continues(self, mock_get_client):
+        """
+        GIVEN: Client creation fails for some regions
+        WHEN: check_service_anomalous_regions encounters client failures
+        THEN: Should gracefully continue with other regions
+        """
+        from modules.utils import AnomalousRegionChecker
+        
+        # Setup mocks - EC2 succeeds, service client fails
+        mock_ec2_client = MagicMock()
+        
+        def mock_client_factory(service, account_id, region, role_name):
+            if service == 'ec2':
+                return mock_ec2_client
+            else:
+                return None  # Simulate client failure
+        
+        mock_get_client.side_effect = mock_client_factory
+        
+        # Mock EC2 regions
+        mock_ec2_client.describe_regions.return_value = {
+            'Regions': [
+                {'RegionName': 'us-east-1'},
+                {'RegionName': 'eu-west-1'}
+            ]
+        }
+        
+        # Act
+        result = AnomalousRegionChecker.check_service_anomalous_regions(
+            service_name='guardduty',
+            expected_regions=['us-east-1'],
+            admin_account='123456789012',
+            verbose=False
+        )
+        
+        # Assert - Should handle gracefully and return empty list
+        assert len(result) == 0
 
 
 class TestExistingUtilities:

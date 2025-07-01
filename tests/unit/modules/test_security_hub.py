@@ -432,7 +432,7 @@ class TestSecurityHubAnomalousRegionDetection:
     """
     SPECIFICATION: Security Hub anomalous region detection
     
-    The check_anomalous_securityhub_regions function should:
+    The AnomalousRegionChecker should:
     1. Detect Security Hub hubs active in regions outside the expected list
     2. Return list of anomalous regions with hub details
     3. Handle API errors gracefully
@@ -440,34 +440,31 @@ class TestSecurityHubAnomalousRegionDetection:
     """
     
     @patch('modules.security_hub.printc')
-    @patch('modules.security_hub.check_anomalous_securityhub_regions')
+    @patch('modules.security_hub.AnomalousRegionChecker.check_service_anomalous_regions')
     def test_when_anomalous_hubs_found_then_show_cost_warnings(self, mock_anomaly_check, mock_print, mock_aws_services):
         """
         GIVEN: Security Hub hubs exist in regions outside expected configuration
         WHEN: setup_security_hub detects anomalous regions
         THEN: Should warn about unexpected costs and configuration drift
         """
-        # Arrange - Mock anomalous regions found
-        mock_anomaly_check.return_value = [
-            {
-                'region': 'ap-southeast-2',
-                'hub_active': True,
-                'hub_details': {
-                    'hub_arn': 'arn:aws:securityhub:ap-southeast-2:123456789012:hub/default',
-                    'subscribed_at': '2024-01-15T10:30:00.000Z',
-                    'auto_enable_controls': True
-                }
-            },
-            {
-                'region': 'eu-west-3',
-                'hub_active': True, 
-                'hub_details': {
-                    'hub_arn': 'arn:aws:securityhub:eu-west-3:123456789012:hub/default',
-                    'subscribed_at': '2024-02-01T08:15:00.000Z',
-                    'auto_enable_controls': False
-                }
-            }
-        ]
+        # Arrange - Mock anomalous regions found using dataclass objects
+        from modules.utils import create_anomalous_status
+        
+        anomaly1 = create_anomalous_status('ap-southeast-2', 1)
+        anomaly1.resource_details = [{
+            'hub_arn': 'arn:aws:securityhub:ap-southeast-2:123456789012:hub/default',
+            'subscribed_at': '2024-01-15T10:30:00.000Z',
+            'auto_enable_controls': True
+        }]
+        
+        anomaly2 = create_anomalous_status('eu-west-3', 1)
+        anomaly2.resource_details = [{
+            'hub_arn': 'arn:aws:securityhub:eu-west-3:123456789012:hub/default',
+            'subscribed_at': '2024-02-01T08:15:00.000Z',
+            'auto_enable_controls': False
+        }]
+        
+        mock_anomaly_check.return_value = [anomaly1, anomaly2]
         
         params = create_test_params()
         

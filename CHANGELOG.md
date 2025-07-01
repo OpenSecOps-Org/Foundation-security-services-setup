@@ -1,5 +1,12 @@
 # Change Log
 
+## v0.1.18
+    * Completed Dataclass Direct Usage refactoring - eliminated dictionary conversion layers throughout codebase
+    * Achieved full type safety with dataclass objects used directly in all service modules and anomalous region detection
+    * Removed obsolete from_dict() method and related test scaffolding for clean production code
+    * Validated real-world deployment success across multi-region AWS environment with 6 security services
+    * Maintained 100% test success rate (219 tests passing in 2.56 seconds)
+
 ## v0.1.17
     * Improved IAM Access Analyzer output messaging - eliminated confusing "No analyzers found" messages when delegation provides complete data
     * Fixed ValidationException for Unused Access analyzers by using correct ListFindingsV2 API instead of ListFindings API

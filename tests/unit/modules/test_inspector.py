@@ -431,7 +431,7 @@ class TestInspectorRealImplementationRequirements:
         assert cost_mentioned, f"Should mention cost-conscious approach. Got: {all_output}"
     
     @patch('builtins.print')
-    @patch('modules.inspector.check_anomalous_inspector_regions')
+    @patch('modules.inspector.AnomalousRegionChecker.check_service_anomalous_regions')
     def test_when_anomalous_scanning_detected_then_show_cost_warnings(self, mock_anomaly_check, mock_print, mock_aws_services):
         """
         GIVEN: Inspector scanning is active in regions outside configuration
@@ -440,11 +440,13 @@ class TestInspectorRealImplementationRequirements:
         
         Anomalous scanning can generate unexpected costs.
         """
-        # Arrange - Mock anomalous regions found
-        mock_anomaly_check.return_value = [
-            {'region': 'eu-central-1', 'scan_types_enabled': 1, 'scan_details': []},
-            {'region': 'eu-north-1', 'scan_types_enabled': 1, 'scan_details': []}
-        ]
+        # Arrange - Mock anomalous regions found using dataclass objects
+        from modules.utils import create_anomalous_status
+        
+        anomaly1 = create_anomalous_status('eu-central-1', 1)
+        anomaly2 = create_anomalous_status('eu-north-1', 1)
+        
+        mock_anomaly_check.return_value = [anomaly1, anomaly2]
         params = create_test_params(regions=['us-east-1'])
         
         # Act
@@ -599,13 +601,13 @@ class TestInspectorRealImplementationRequirements:
         # Arrange - Mock the scenario: Inspector delegated but no members
         mock_inspector_check.return_value = {
             'region': 'us-east-1',
-            'inspector_enabled': True,  # Delegation exists
+            'service_enabled': True,  # Delegation exists
             'delegation_status': 'delegated',
             'member_count': 0,  # No members
             'needs_changes': True,
             'issues': ['Inspector has no member accounts configured'],
             'actions': ['Add organization member accounts to Inspector'],
-            'inspector_details': ['✅ Inspector Configuration: 0 scan types enabled']
+            'service_details': ['✅ Inspector Configuration: 0 scan types enabled']
         }
         params = create_test_params(regions=['us-east-1'])
         
@@ -661,14 +663,14 @@ class TestInspectorRealImplementationRequirements:
         # Arrange - Mock Inspector as properly configured with members
         mock_inspector_check.return_value = {
             'region': 'us-east-1',
-            'inspector_enabled': True,
+            'service_enabled': True,
             'delegation_status': 'delegated',
             'member_count': 15,  # 15 accounts in organization
             'scan_types_enabled': 3,  # ECR, EC2, Lambda enabled
             'needs_changes': False,
             'issues': [],
             'actions': [],
-            'inspector_details': ['✅ Inspector Configuration: 3 scan types enabled', '✅ Inspector Members: 15 accounts']
+            'service_details': ['✅ Inspector Configuration: 3 scan types enabled', '✅ Inspector Members: 15 accounts']
         }
         
         # Mock auto-activation as enabled
@@ -1123,7 +1125,7 @@ class TestInspectorDelegationReporting:
         )
         
         # Assert - This is what SHOULD happen (test will fail with current code)
-        assert result['inspector_enabled'] is False  # No delegation = not enabled in Inspector
+        assert result['service_enabled'] is False  # No delegation = not enabled in Inspector
         assert result['delegation_status'] == 'check_failed'
         assert result['needs_changes'] is True, "Should flag delegation check failure as needing attention"
         assert any('delegation' in issue.lower() for issue in result['issues']), "Should report delegation check issue"
@@ -1145,7 +1147,7 @@ class TestInspectorDelegationReporting:
                 # Region 1: Properly delegated
                 return {
                     'region': 'us-east-1',
-                    'inspector_enabled': True,
+                    'service_enabled': True,
                     'delegation_status': 'delegated',
                     'member_count': 5,
                     'scan_types_enabled': 3,
@@ -1153,13 +1155,13 @@ class TestInspectorDelegationReporting:
                     'issues': [],
                     'actions': [],
                     'errors': [],
-                    'inspector_details': ['✅ Delegated Admin: Security-Adm']
+                    'service_details': ['✅ Delegated Admin: Security-Adm']
                 }
             elif region == 'us-west-2':
                 # Region 2: Delegation check failed (API error) - FIXED
                 return {
                     'region': 'us-west-2',
-                    'inspector_enabled': True,
+                    'service_enabled': True,
                     'delegation_status': 'unknown',
                     'member_count': 0,
                     'scan_types_enabled': 1,
@@ -1167,7 +1169,7 @@ class TestInspectorDelegationReporting:
                     'issues': ['Unable to verify delegation status'],  # FIXED: Contains delegation check failure
                     'actions': ['Check IAM permissions for Organizations API'],
                     'errors': ['Check delegated administrators failed: AccessDenied'],
-                    'inspector_details': ['❌ Delegation check failed: AccessDenied']
+                    'service_details': ['❌ Delegation check failed: AccessDenied']
                 }
         
         mock_check_inspector.side_effect = mock_region_check
@@ -1206,7 +1208,7 @@ class TestInspectorDelegationReporting:
             # Region with API permission error
             return {
                 'region': region,
-                'inspector_enabled': True,
+                'service_enabled': True,
                 'delegation_status': 'unknown',
                 'member_count': 0,
                 'scan_types_enabled': 1,
@@ -1214,7 +1216,7 @@ class TestInspectorDelegationReporting:
                 'issues': ['Unable to verify delegation status'],  # FIXED: Should have issue
                 'actions': ['Check IAM permissions for Organizations API'],
                 'errors': ['Check delegated administrators failed: AccessDenied'],
-                'inspector_details': ['❌ Delegation check failed: AccessDenied']
+                'service_details': ['❌ Delegation check failed: AccessDenied']
             }
         
         mock_check_inspector.side_effect = mock_region_check

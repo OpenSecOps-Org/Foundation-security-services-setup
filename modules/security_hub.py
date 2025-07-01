@@ -21,7 +21,7 @@ Automates the manual steps:
    idea to wait 24 hours to verify your control setup.
 """
 
-from .utils import printc, get_client, DelegationChecker, YELLOW, LIGHT_BLUE, GREEN, RED, GRAY, END, BOLD
+from .utils import printc, get_client, DelegationChecker, AnomalousRegionChecker, create_service_status, YELLOW, LIGHT_BLUE, GREEN, RED, GRAY, END, BOLD
 
 def setup_security_hub(enabled, params, dry_run, verbose):
     """
@@ -80,13 +80,20 @@ def setup_security_hub(enabled, params, dry_run, verbose):
             if verbose:
                 printc(GRAY, f"\n Checking for Security Hub hubs in unexpected regions...")
             
-            anomalous_regions = check_anomalous_securityhub_regions(regions, admin_account, security_account, cross_account_role, verbose)
+            anomalous_regions = AnomalousRegionChecker.check_service_anomalous_regions(
+                service_name='security_hub',
+                expected_regions=regions,
+                admin_account=admin_account,
+                security_account=security_account,
+                cross_account_role=cross_account_role,
+                verbose=verbose
+            )
             
             if anomalous_regions:
                 printc(YELLOW, f"\n⚠️  ANOMALOUS SECURITY HUB HUBS DETECTED:")
                 printc(YELLOW, f"Security Hub hubs are active in regions outside your configuration:")
                 for anomaly in anomalous_regions:
-                    region = anomaly['region']
+                    region = anomaly.region
                     printc(YELLOW, f"  • {region}: Hub is active (not in your regions list)")
                 printc(YELLOW, f"")
                 printc(YELLOW, f"ANOMALY RECOMMENDATIONS:")
@@ -154,23 +161,37 @@ def check_security_hub_delegation(admin_account: str, security_account: str, reg
 
 
 def check_security_hub_in_region(region: str, admin_account: str, security_account: str, cross_account_role: str, verbose=False) -> dict:
-    """Check Security Hub configuration in a specific region."""
+    """Check Security Hub configuration in a specific region.
+    Returns standardized status dictionary with uniform field names.
+    """
     if verbose:
         printc(GRAY, f"     Analyzing Security Hub in region: {region}")
     
-    hub_config = {
-        'region': region,
-        'hub_enabled': False,
-        'hub_arn': None,
-        'consolidated_controls_enabled': False,
-        'auto_enable_controls': None,
-        'finding_aggregation_status': None,
-        'standards_subscriptions': [],
-        'member_count': 0,
-        'findings_transfer_configured': False,
-        'main_region_aggregation': None,
-        'errors': []
-    }
+    # Create standardized status using new dataclass structure
+    status_obj = create_service_status('security_hub', region)
+    
+    # Convert to dict for backward compatibility during transition
+    hub_config = status_obj.to_dict()
+    
+    # Security Hub uses delegation status
+    hub_config['delegation_status'] = 'unknown'
+    
+    # Ensure all Security Hub-specific fields are present (from SecurityHubRegionStatus)
+    # These will be properly initialized when the dataclass is used
+    if 'hub_arn' not in hub_config:
+        hub_config['hub_arn'] = None
+    if 'consolidated_controls_enabled' not in hub_config:
+        hub_config['consolidated_controls_enabled'] = False
+    if 'auto_enable_controls' not in hub_config:
+        hub_config['auto_enable_controls'] = None
+    if 'finding_aggregation_status' not in hub_config:
+        hub_config['finding_aggregation_status'] = None
+    if 'standards_subscriptions' not in hub_config:
+        hub_config['standards_subscriptions'] = []
+    if 'findings_transfer_configured' not in hub_config:
+        hub_config['findings_transfer_configured'] = False
+    if 'main_region_aggregation' not in hub_config:
+        hub_config['main_region_aggregation'] = None
     
     try:
         # Check from admin account first, then switch to delegated if available
@@ -179,7 +200,7 @@ def check_security_hub_in_region(region: str, admin_account: str, security_accou
         try:
             # Get hub details
             response = securityhub_client.describe_hub()
-            hub_config['hub_enabled'] = True
+            hub_config['service_enabled'] = True
             hub_config['hub_arn'] = response.get('HubArn')
             hub_config['auto_enable_controls'] = response.get('AutoEnableControls', False)
             
@@ -197,14 +218,19 @@ def check_security_hub_in_region(region: str, admin_account: str, security_accou
                 
         except ClientError as e:
             if e.response['Error']['Code'] == 'InvalidAccessException':
+                hub_config['needs_changes'] = True
+                hub_config['issues'].append(f"Security Hub not enabled in region {region}")
+                hub_config['actions'].append(f"Enable Security Hub in region {region}")
+                hub_config['service_details'].append(f"❌ Security Hub not enabled in region {region}")
                 if verbose:
                     printc(YELLOW, f"      ⚠️  Security Hub not enabled in region {region}")
             else:
                 error_msg = f"Failed to describe hub: {str(e)}"
                 hub_config['errors'].append(error_msg)
+                hub_config['service_details'].append(f"❌ {error_msg}")
         
         # If hub is enabled, get detailed configuration (preferably from delegated admin)
-        if hub_config['hub_enabled']:
+        if hub_config['service_enabled']:
             # Try to get client for delegated admin account
             delegated_client = get_client('securityhub', security_account, region, cross_account_role)
             client_to_use = delegated_client if delegated_client else securityhub_client
@@ -242,6 +268,7 @@ def check_security_hub_in_region(region: str, admin_account: str, security_accou
             except ClientError as e:
                 error_msg = f"Failed to get enabled standards: {str(e)}"
                 hub_config['errors'].append(error_msg)
+                hub_config['service_details'].append(f"❌ {error_msg}")
             
             # Get member accounts (requires pagination)
             try:
@@ -258,6 +285,7 @@ def check_security_hub_in_region(region: str, admin_account: str, security_accou
             except ClientError as e:
                 error_msg = f"Failed to list members: {str(e)}"
                 hub_config['errors'].append(error_msg)
+                hub_config['service_details'].append(f"❌ {error_msg}")
             
             # CRITICAL: Check finding aggregation configuration
             try:
@@ -285,10 +313,15 @@ def check_security_hub_in_region(region: str, admin_account: str, security_accou
             except ClientError as e:
                 error_msg = f"Failed to check finding aggregation: {str(e)}"
                 hub_config['errors'].append(error_msg)
+                hub_config['service_details'].append(f"❌ {error_msg}")
                     
     except Exception as e:
         error_msg = f"Unexpected error in region {region}: {str(e)}"
         hub_config['errors'].append(error_msg)
+        hub_config['service_details'].append(f"❌ {error_msg}")
+        hub_config['needs_changes'] = True
+        hub_config['issues'].append(f"Security Hub check failed in {region}")
+        hub_config['actions'].append("Investigate Security Hub configuration and permissions")
     
     return hub_config
 
@@ -560,7 +593,14 @@ def show_security_hub_deactivation_analysis(admin_account: str, security_account
             printc(GRAY, f"\n Checking all AWS regions for spurious Security Hub activation...")
         
         # Pass empty list as expected_regions so ALL regions are checked
-        anomalous_regions = check_anomalous_securityhub_regions([], admin_account, security_account, cross_account_role, verbose)
+        anomalous_regions = AnomalousRegionChecker.check_service_anomalous_regions(
+            service_name='security_hub',
+            expected_regions=[],
+            admin_account=admin_account,
+            security_account=security_account,
+            cross_account_role=cross_account_role,
+            verbose=verbose
+        )
         
         if anomalous_regions:
             printc(YELLOW, f"\n⚠️  SPURIOUS SECURITY HUB ACTIVATION DETECTED:")
@@ -569,8 +609,10 @@ def show_security_hub_deactivation_analysis(admin_account: str, security_account
             printc(YELLOW, f"Current spurious Security Hub resources:")
             printc(YELLOW, f"  • Hubs active across {len(anomalous_regions)} unexpected region(s)")
             for anomaly in anomalous_regions:
-                region = anomaly['region']
-                hub_details = anomaly['hub_details']
+                region = anomaly.region
+                resource_details = anomaly.resource_details
+                # Get first resource detail (there should be exactly one hub)
+                hub_details = resource_details[0] if resource_details else {}
                 auto_enable = "auto-enable" if hub_details.get('auto_enable_controls', False) else "manual controls"
                 printc(YELLOW, f"    📍 {region}: Hub active ({auto_enable})")
             printc(YELLOW, f"")
@@ -581,109 +623,3 @@ def show_security_hub_deactivation_analysis(admin_account: str, security_account
         else:
             printc(GREEN, "✅ Security Hub is not currently configured - no deactivation needed")
 
-def check_anomalous_securityhub_regions(expected_regions, admin_account, security_account, cross_account_role=None, verbose=False):
-    """
-    Check for Security Hub hubs active in regions outside the expected list.
-    
-    This detects configuration drift where Security Hub was enabled in regions
-    not included in the current setup, which could generate unexpected costs.
-    
-    Returns list of anomalous regions with hub details.
-    """
-    import boto3
-    from botocore.exceptions import ClientError
-    
-    anomalous_regions = []
-    
-    try:
-        # Get all AWS regions to check for anomalous hubs
-        ec2_client = get_client('ec2', admin_account, expected_regions[0] if expected_regions else 'us-east-1', 'AWSControlTowerExecution')
-        regions_response = ec2_client.describe_regions()
-        all_regions = [region['RegionName'] for region in regions_response['Regions']]
-        
-        # Check regions that are NOT in our expected list
-        unexpected_regions = [region for region in all_regions if region not in expected_regions]
-        
-        if verbose:
-            printc(GRAY, f"    Checking {len(unexpected_regions)} regions outside configuration...")
-        
-        for region in unexpected_regions:
-            try:
-                securityhub_client = get_client('securityhub', admin_account, region, 'AWSControlTowerExecution')
-                
-                # Check if Security Hub is enabled in this region
-                try:
-                    hub_info = securityhub_client.describe_hub()
-                    
-                    # If we got here, Security Hub is active
-                    # Collect account details for better security actionability
-                    account_details = []
-                    
-                    # Add admin account details
-                    account_details.append({
-                        'account_id': admin_account,
-                        'account_status': 'ADMIN_ACCOUNT',
-                        'hub_status': 'ENABLED'
-                    })
-                    
-                    # Get member account details if any
-                    try:
-                        members_response = securityhub_client.list_members()
-                        members = members_response.get('Members', [])
-                        for member in members:
-                            account_details.append({
-                                'account_id': member.get('AccountId'),
-                                'account_status': 'MEMBER_ACCOUNT',
-                                'hub_status': member.get('MemberStatus', 'Unknown'),
-                                'invited_at': member.get('InvitedAt'),
-                                'updated_at': member.get('UpdatedAt')
-                            })
-                    except ClientError as e:
-                        if verbose:
-                            printc(GRAY, f"    (Could not get member details for {region}: {str(e)})")
-                    
-                    anomalous_regions.append({
-                        'region': region,
-                        'hub_active': True,
-                        'hub_details': {
-                            'hub_arn': hub_info.get('HubArn', 'Unknown'),
-                            'subscribed_at': hub_info.get('SubscribedAt', 'Unknown'),
-                            'auto_enable_controls': hub_info.get('AutoEnableControls', False)
-                        },
-                        'account_details': account_details
-                    })
-                    
-                    if verbose:
-                        printc(YELLOW, f"    ⚠️  Anomalous Security Hub in {region}: Hub is active")
-                        printc(YELLOW, f"       Hub ARN: {hub_info.get('HubArn', 'Unknown')}")
-                        printc(YELLOW, f"       Auto-enable controls: {hub_info.get('AutoEnableControls', False)}")
-                        
-                except ClientError as e:
-                    # Security Hub not enabled in this region - this is expected
-                    if 'InvalidAccessException' in str(e) or 'ResourceNotFoundException' in str(e):
-                        # This is normal - Security Hub not enabled in this region
-                        continue
-                    else:
-                        if verbose:
-                            printc(GRAY, f"    (Could not check Security Hub in {region}: {str(e)})")
-                        continue
-                            
-            except ClientError as e:
-                # Don't show common "service not available" errors
-                if 'Could not connect to the endpoint URL' not in str(e) and 'UnsupportedOperation' not in str(e):
-                    if verbose:
-                        printc(GRAY, f"    (Skipping {region}: {str(e)})")
-                continue
-            except Exception as e:
-                # Don't show common connectivity errors
-                if 'Could not connect to the endpoint URL' not in str(e):
-                    if verbose:
-                        printc(GRAY, f"    (Error checking {region}: {str(e)})")
-                continue
-        
-        return anomalous_regions
-        
-    except Exception as e:
-        if verbose:
-            printc(GRAY, f"    ⚠️  Anomaly check failed: {str(e)}")
-        return []
