@@ -1,5 +1,9 @@
 # Change Log
 
+## v0.1.19
+    * Fixed Security Hub field name mismatch bug causing false "not enabled in all regions" warnings when hubs were properly configured
+    * Removed misleading "completed successfully" messages that suggested services were configured when they only indicated module execution without crashes
+
 ## v0.1.18
     * Completed Dataclass Direct Usage refactoring - eliminated dictionary conversion layers throughout codebase
     * Achieved full type safety with dataclass objects used directly in all service modules and anomalous region detection

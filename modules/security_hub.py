@@ -463,7 +463,7 @@ def generate_security_hub_recommendations(delegation_status: dict, overall_confi
     main_region = regions[0]  # First region is typically the main region
     
     # Check overall configuration status
-    enabled_regions = [r for r, config in overall_config.items() if config.get('hub_enabled')]
+    enabled_regions = [r for r, config in overall_config.items() if config.get('service_enabled')]
     consolidated_controls_regions = [r for r, config in overall_config.items() if config.get('consolidated_controls_enabled')]
     auto_enable_issues = [r for r, config in overall_config.items() if config.get('auto_enable_controls', False)]
     
@@ -475,7 +475,10 @@ def generate_security_hub_recommendations(delegation_status: dict, overall_confi
     if is_delegated and enabled_regions:
         # Consider anomalous regions in perfect configuration check
         has_anomalous_regions = anomalous_regions and len(anomalous_regions) > 0
-        if len(consolidated_controls_regions) == len(enabled_regions) and not auto_enable_issues and findings_aggregated and not has_anomalous_regions:
+        # Check if all configured regions are enabled AND all enabled regions have consolidated controls
+        all_regions_enabled = len(enabled_regions) == len(regions)
+        all_enabled_have_consolidated = len(consolidated_controls_regions) == len(enabled_regions)
+        if all_regions_enabled and all_enabled_have_consolidated and not auto_enable_issues and findings_aggregated and not has_anomalous_regions:
             # Perfect configuration
             printc(GREEN, "✅ Security Hub is optimally configured for consolidated controls")
             printc(GREEN, f"✅ Consolidated controls enabled in all {len(enabled_regions)} regions")
@@ -499,6 +502,11 @@ def generate_security_hub_recommendations(delegation_status: dict, overall_confi
         else:
             # Configuration issues found
             printc(YELLOW, "⚠️  Security Hub configuration needs optimization:")
+            
+            # Check if not all configured regions are enabled
+            if not all_regions_enabled:
+                missing_regions = [r for r in regions if r not in enabled_regions]
+                printc(YELLOW, f"  • Enable Security Hub in: {', '.join(missing_regions)}")
             
             if len(consolidated_controls_regions) < len(enabled_regions):
                 missing_regions = [r for r in enabled_regions if r not in consolidated_controls_regions]

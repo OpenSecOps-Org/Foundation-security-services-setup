@@ -10,7 +10,7 @@ import pytest
 import sys
 import os
 import subprocess
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 # Add the project root to the path to import modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -268,3 +268,64 @@ class TestArgumentValidation:
         args = parser.parse_args(test_args)
         assert args.cross_account_role == "AWSControlTowerExecution", \
             "Default cross-account role should be AWSControlTowerExecution"
+
+
+class TestMainScriptSuccessMessages:
+    """
+    TDD TESTS: Verify misleading 'completed successfully' messages are removed
+    
+    These tests ensure that confusing success messages are eliminated from the main script.
+    The messages give false impression that services are configured properly when they
+    only indicate the module executed without crashing.
+    """
+    
+    @patch('builtins.print')
+    def test_main_script_does_not_show_misleading_success_messages(self, mock_print, mock_aws_services):
+        """
+        TDD RED PHASE: This test WILL FAIL initially to expose the misleading messages.
+        
+        GIVEN: Main script executes service setup functions  
+        WHEN: Services return True (indicating module executed successfully)
+        THEN: Should NOT show "✅ ServiceName completed successfully" messages
+        
+        These messages are misleading because they suggest the service is properly 
+        configured when it only means the setup module didn't crash.
+        """
+        # Arrange - Mock all service setup functions to return True
+        with patch('modules.aws_config.setup_aws_config', return_value=True), \
+             patch('modules.guardduty.setup_guardduty', return_value=True), \
+             patch('modules.access_analyzer.setup_access_analyzer', return_value=True), \
+             patch('modules.security_hub.setup_security_hub', return_value=True), \
+             patch('modules.detective.setup_detective', return_value=True), \
+             patch('modules.inspector.setup_inspector', return_value=True):
+            
+            # Import and execute main script logic
+            import subprocess
+            import sys
+            
+            # Run the main script with mocked services
+            result = subprocess.run([
+                sys.executable, 'setup-security-services',
+                '--admin-account', '123456789012',
+                '--security-account', '234567890123', 
+                '--regions', 'us-east-1',
+                '--org-id', 'o-example12345',
+                '--root-ou', 'r-example12345',
+                '--dry-run'
+            ], capture_output=True, text=True, cwd=os.path.join(os.path.dirname(__file__), '..', '..'))
+            
+            # Assert - Should NOT contain misleading success messages
+            all_output = result.stdout + result.stderr
+            
+            # TDD RED PHASE: These assertions will FAIL, exposing the misleading messages
+            misleading_messages = [
+                "✅ AWS Config completed successfully",
+                "✅ GuardDuty completed successfully", 
+                "✅ IAM Access Analyzer completed successfully",
+                "✅ Security Hub completed successfully",
+                "✅ Detective completed successfully",
+                "✅ Inspector completed successfully"
+            ]
+            
+            for message in misleading_messages:
+                assert message not in all_output, f"Misleading message found: '{message}' - this suggests service is properly configured when it only means module didn't crash"

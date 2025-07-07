@@ -175,7 +175,6 @@ AWS CONFIG SETUP
 Checking AWS Config setup in 2 regions...
 ✅ AWS Config is already properly configured in all regions
    No changes needed - existing setup meets stringent security standards
-✅ AWS Config completed successfully
 
 ============================================================
 GUARDDUTY SETUP
@@ -183,7 +182,6 @@ GUARDDUTY SETUP
 Checking GuardDuty setup in 2 regions...
 ✅ GuardDuty is already properly configured in all regions
    No changes needed - existing setup meets stringent security standards
-✅ GuardDuty completed successfully
 
 ============================================================
 IAM ACCESS ANALYZER SETUP
@@ -201,7 +199,6 @@ Checking IAM Access Analyzer setup...
 
  Making Access Analyzer changes...
   TODO: Create required analyzers in eu-north-1
-✅ IAM Access Analyzer completed successfully
 
 ============================================================
 SECURITY HUB SETUP
@@ -219,19 +216,16 @@ ANOMALY RECOMMENDATIONS:
 ⚠️  Security Hub configuration needs optimization:
   • Review anomalous hubs in 1 unexpected region(s)
     (Hubs outside configured regions may generate unexpected costs)
-✅ Security Hub completed successfully
 
 ============================================================
 DETECTIVE SETUP
 ============================================================
 Detective is disabled - checking for active resources to deactivate
-✅ Detective completed successfully
 
 ============================================================
 INSPECTOR SETUP
 ============================================================
 Inspector is disabled - checking for active resources to deactivate
-✅ Inspector completed successfully
 
 ============================================================
 FINAL SUMMARY
@@ -329,7 +323,6 @@ Region: us-east-1
   ✅ Config Rules: 251 active rules
      AWS Managed Rules: 234
      Custom Rules: 17
-✅ AWS Config completed successfully
 
 ============================================================
 GUARDDUTY SETUP
@@ -393,7 +386,6 @@ Security account (222222222222): Should be delegated admin for organization
      EBS Malware Protection: disabled
   ✅ Member Accounts: 142 found
      ✅ All 142 member accounts are enabled
-✅ GuardDuty completed successfully
 
 ============================================================
 IAM ACCESS ANALYZER SETUP
@@ -435,7 +427,6 @@ Other regions: Should have external access analyzers only
 
  Making Access Analyzer changes...
   TODO: Create required analyzers in eu-north-1
-✅ IAM Access Analyzer completed successfully
 
 ============================================================
 SECURITY HUB SETUP
@@ -498,7 +489,6 @@ ANOMALY RECOMMENDATIONS:
 ⚠️  Security Hub configuration needs optimization:
   • Review anomalous hubs in 1 unexpected region(s)
     (Hubs outside configured regions may generate unexpected costs)
-✅ Security Hub completed successfully
 
 ============================================================
 DETECTIVE SETUP
@@ -514,7 +504,6 @@ Detective is disabled - checking for active resources to deactivate
     Checking all AWS regions for spurious Detective activation...
     Checking 17 regions outside configuration...
    ✅ Detective is not delegated or active - no cleanup needed
-✅ Detective completed successfully
 
 ============================================================
 INSPECTOR SETUP
@@ -529,7 +518,6 @@ Verbose: True
 Inspector is disabled - checking for active resources to deactivate
     Checking all 17 AWS regions for spurious Inspector activation...
    ✅ Inspector is not delegated or active - no cleanup needed
-✅ Inspector completed successfully
 
 ============================================================
 FINAL SUMMARY

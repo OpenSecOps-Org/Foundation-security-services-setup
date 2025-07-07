@@ -110,7 +110,6 @@ def main():
             success = setup_func(enabled, params, args.dry_run, args.verbose)
             if success:
                 results[service_name] = "SUCCESS"
-                printc(GREEN, f"✅ {service_name} completed successfully")
             else:
                 results[service_name] = "FAILED"
                 printc(RED, f"⚠️ {service_name} failed")

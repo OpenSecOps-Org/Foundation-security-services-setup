@@ -482,6 +482,194 @@ class TestSecurityHubAnomalousRegionDetection:
         assert anomaly_mentioned, f"Should show anomalous hub warnings. Got: {all_output}"
 
 
+class TestSecurityHubRecommendationsFieldConsistency:
+    """
+    SPECIFICATION: Security Hub recommendations field name consistency
+    
+    The generate_security_hub_recommendations function should:
+    1. Use consistent field names when analyzing region configurations
+    2. Properly match field names between analysis and recommendation logic  
+    3. Correctly identify enabled regions using service_enabled field
+    4. Generate accurate recommendations based on actual configuration status
+    
+    These tests were added via TDD methodology to prevent field name mismatches
+    between Security Hub analysis and recommendation generation.
+    """
+    
+    @patch('modules.security_hub.check_security_hub_delegation')
+    @patch('modules.security_hub.check_security_hub_in_region') 
+    @patch('modules.security_hub.check_control_policies')
+    @patch('builtins.print')
+    def test_when_hub_enabled_in_region_then_recommendations_detect_enabled_regions_correctly(self, mock_print, mock_policies, mock_region_check, mock_delegation_check, mock_aws_services):
+        """
+        GIVEN: Security Hub is enabled in a region (service_enabled=True)
+        WHEN: generate_security_hub_recommendations analyzes the configuration
+        THEN: Should correctly identify the region as enabled using the right field name
+        
+        This test exposes the field name mismatch bug where:
+        - check_security_hub_in_region sets service_enabled=True 
+        - generate_security_hub_recommendations looks for hub_enabled
+        - Result: enabled regions are not detected, leading to incorrect recommendations
+        """
+        # Arrange - Mock delegation as successful
+        mock_delegation_check.return_value = {
+            'is_delegated_to_security': True,
+            'delegated_admin_account': '234567890123',
+            'delegation_details': {},
+            'errors': []
+        }
+        
+        # Arrange - Mock region check returns service_enabled=True (the actual field set by the function)
+        def mock_region_status(region, admin_account, security_account, cross_account_role, verbose):
+            return {
+                'region': region,
+                'service_enabled': True,  # ← This is what check_security_hub_in_region actually sets
+                'hub_arn': f'arn:aws:securityhub:{region}:123456789012:hub/default',
+                'consolidated_controls_enabled': True,
+                'auto_enable_controls': False,
+                'finding_aggregation_status': 'SECURITY_CONTROL',
+                'standards_subscriptions': [],
+                'member_count': 5,
+                'findings_transfer_configured': True,
+                'main_region_aggregation': True,
+                'errors': []
+            }
+        
+        mock_region_check.side_effect = mock_region_status
+        
+        # Arrange - Mock control policies  
+        mock_policies.return_value = {
+            'policy_count': 2,
+            'association_count': 4,
+            'prod_policy': {'Name': 'PROD-Policy'},
+            'dev_policy': {'Name': 'DEV-Policy'},
+            'errors': []
+        }
+        
+        # Arrange - Import and prepare to call generate_security_hub_recommendations directly
+        from modules.security_hub import generate_security_hub_recommendations
+        
+        params = create_test_params(regions=['us-east-1', 'us-west-2'])
+        
+        # Create the overall_config structure that setup_security_hub builds
+        overall_config = {}
+        for region in params['regions']:
+            overall_config[region] = mock_region_status(region, params['admin_account'], params['security_account'], params['cross_account_role'], False)
+        
+        delegation_status = mock_delegation_check.return_value
+        control_policies = mock_policies.return_value
+        
+        # Act - Call generate_security_hub_recommendations directly
+        generate_security_hub_recommendations(
+            delegation_status=delegation_status,
+            overall_config=overall_config,
+            control_policies=control_policies,
+            params=params,
+            dry_run=False,
+            verbose=False,
+            anomalous_regions=[]
+        )
+        
+        # Assert - Should detect that Security Hub is enabled in regions
+        all_output = ' '.join(str(call) for call in mock_print.call_args_list)
+        
+        # BUG DETECTION: The function should show "optimally configured" message 
+        # because both regions have service_enabled=True, but due to the field name bug
+        # it will incorrectly show "not enabled in all regions" message
+        
+        # What SHOULD happen (after bug fix):
+        optimal_config_detected = 'optimally configured' in all_output.lower()
+        
+        # What ACTUALLY happens (due to bug):
+        incorrect_not_enabled_message = 'not enabled in all regions' in all_output.lower()
+        
+        # Should detect optimal configuration when all regions have service_enabled=True
+        assert optimal_config_detected, f"Should show 'optimally configured' when service_enabled=True in all regions. Output: {all_output}"
+    
+    @patch('modules.security_hub.check_security_hub_delegation')
+    @patch('modules.security_hub.check_security_hub_in_region')
+    @patch('modules.security_hub.check_control_policies') 
+    @patch('builtins.print')
+    def test_when_regions_have_different_enable_status_then_recommendations_analyze_correctly(self, mock_print, mock_policies, mock_region_check, mock_delegation_check, mock_aws_services):
+        """
+        GIVEN: Mixed region configuration (some enabled, some disabled)
+        WHEN: generate_security_hub_recommendations analyzes the configuration  
+        THEN: Should correctly identify which regions are enabled vs disabled
+        
+        This test further validates the field name consistency across the analysis.
+        """
+        # Arrange - Mock delegation
+        mock_delegation_check.return_value = {
+            'is_delegated_to_security': True,
+            'delegated_admin_account': '234567890123',
+            'delegation_details': {},
+            'errors': []
+        }
+        
+        # Arrange - Mock mixed region status: us-east-1 enabled, us-west-2 disabled
+        def mock_region_status(region, admin_account, security_account, cross_account_role, verbose):
+            if region == 'us-east-1':
+                return {
+                    'region': region,
+                    'service_enabled': True,  # Enabled region
+                    'hub_arn': f'arn:aws:securityhub:{region}:123456789012:hub/default',
+                    'consolidated_controls_enabled': True,
+                    'auto_enable_controls': False,
+                    'findings_transfer_configured': True,
+                    'errors': []
+                }
+            else:  # us-west-2
+                return {
+                    'region': region, 
+                    'service_enabled': False,  # Disabled region
+                    'hub_arn': None,
+                    'consolidated_controls_enabled': False,
+                    'auto_enable_controls': None,
+                    'findings_transfer_configured': False,
+                    'errors': []
+                }
+        
+        mock_region_check.side_effect = mock_region_status
+        mock_policies.return_value = {'policy_count': 0, 'association_count': 0, 'errors': []}
+        
+        # Arrange - Set up test data
+        from modules.security_hub import generate_security_hub_recommendations
+        params = create_test_params(regions=['us-east-1', 'us-west-2'])
+        
+        overall_config = {}
+        for region in params['regions']:
+            overall_config[region] = mock_region_status(region, params['admin_account'], params['security_account'], params['cross_account_role'], False)
+        
+        # Act
+        generate_security_hub_recommendations(
+            delegation_status=mock_delegation_check.return_value,
+            overall_config=overall_config,
+            control_policies=mock_policies.return_value,
+            params=params,
+            dry_run=False,
+            verbose=False,
+            anomalous_regions=[]
+        )
+        
+        # Assert - Should identify mixed configuration correctly
+        all_output = ' '.join(str(call) for call in mock_print.call_args_list)
+        
+        # With mixed configuration, it should NOT show "optimally configured" 
+        # Instead it should show a warning about missing regions
+        optimal_config_shown = 'optimally configured' in all_output.lower()
+        missing_regions_shown = 'us-west-2' in all_output or 'missing' in all_output.lower() or 'configuration needs optimization' in all_output.lower()
+        
+        # Should correctly identify which regions need enablement based on service_enabled field
+        # us-east-1 is enabled (service_enabled=True) so should NOT be listed for enablement
+        # us-west-2 is disabled (service_enabled=False) so SHOULD be listed for enablement
+        us_east_1_incorrectly_listed = 'us-east-1' in all_output and 'enable' in all_output.lower()
+        us_west_2_correctly_listed = 'us-west-2' in all_output
+        
+        # Only us-west-2 should be listed as needing enablement
+        assert not us_east_1_incorrectly_listed, f"us-east-1 is enabled (service_enabled=True) and should NOT be listed for enablement. Output: {all_output}"
+        assert us_west_2_correctly_listed, f"us-west-2 is disabled (service_enabled=False) and SHOULD be listed for enablement. Output: {all_output}"
+
+
 class TestSecurityHubDelegationReporting:
     """
     SPECIFICATION: Security Hub delegation reporting issues
