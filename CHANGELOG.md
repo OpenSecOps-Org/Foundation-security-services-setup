@@ -1,5 +1,8 @@
 # Change Log
 
+## v0.1.20
+    * Enable auto-close workflow for external pull requests, enforcing the cathedral governance policy uniformly across all OpenSecOps repositories. Pull requests from non-team authors are closed automatically with a redirect comment pointing to the bug-report template, the GitHub Security Advisory flow, and the fork-under-MPL-2.0 path.
+
 ## v0.1.19
     * Fixed Security Hub field name mismatch bug causing false "not enabled in all regions" warnings when hubs were properly configured
     * Removed misleading "completed successfully" messages that suggested services were configured when they only indicated module execution without crashes
