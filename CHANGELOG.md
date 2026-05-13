@@ -1,5 +1,8 @@
 # Change Log
 
+## v0.1.21
+    * Converted to OpenSecOps supply-chain framework: hash-pinned dependencies (`boto3==1.42.94`, `urllib3>=2.7.0`), signed releases via Sigstore (SBOM + evidence tarball + SLSA Build L1 provenance, each accompanied by a Sigstore `.bundle`), daily CVE scan, OpenSSF Scorecard, customer-side release verification via `scripts/deploy.py` (Installer v3.0.11+). See `SECURITY.md`.
+
 ## v0.1.20
     * Enable auto-close workflow for external pull requests, enforcing the cathedral governance policy uniformly across all OpenSecOps repositories. Pull requests from non-team authors are closed automatically with a redirect comment pointing to the bug-report template, the GitHub Security Advisory flow, and the fork-under-MPL-2.0 path.
 

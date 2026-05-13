@@ -1,5 +1,7 @@
 # Foundation Security Services Setup
 
+[![Daily CVE scan](https://github.com/OpenSecOps-Org/Foundation-security-services-setup/actions/workflows/daily-scan.yml/badge.svg)](https://github.com/OpenSecOps-Org/Foundation-security-services-setup/actions/workflows/daily-scan.yml) [![OpenSSF Scorecard](https://github.com/OpenSecOps-Org/Foundation-security-services-setup/actions/workflows/scorecard.yml/badge.svg)](https://github.com/OpenSecOps-Org/Foundation-security-services-setup/actions/workflows/scorecard.yml)
+
 **Automated AWS security service configuration for infrastructure engineers**
 
 > **⚠️ PRE-RELEASE VERSION**: This version provides comprehensive read-only analysis and discovery of AWS security services. It does not yet mutate AWS resources. Full automation capabilities coming in v1.0.0.
